@@ -15,6 +15,7 @@ body {
   color: #f5f3ff;
   min-height: 100vh;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
 
 /* Noise grain overlay */

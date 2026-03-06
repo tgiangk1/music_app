@@ -66,14 +66,6 @@ export function useQueue(slug) {
         }
     }, [slug]);
 
-    const voteSong = useCallback(async (songId, type) => {
-        try {
-            await api.post(`/api/rooms/${slug}/songs/${songId}/vote`, { type });
-        } catch (err) {
-            toast.error('Failed to vote');
-        }
-    }, [slug]);
-
     const clearQueue = useCallback(async () => {
         try {
             await api.delete(`/api/rooms/${slug}/songs`);
@@ -96,7 +88,6 @@ export function useQueue(slug) {
         isLoading,
         addSong,
         removeSong,
-        voteSong,
         clearQueue,
         reorderQueue,
     };

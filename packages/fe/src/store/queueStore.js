@@ -4,7 +4,22 @@ export const useQueueStore = create((set) => ({
     songs: [],
     isLoading: true,
 
-    setSongs: (songs) => set({ songs, isLoading: false }),
+    setSongs: (newSongs) => set((state) => {
+        // Prevent generic socket updates from wiping out personalized `userVote`
+        const mergedSongs = newSongs.map(newSong => {
+            // If the incoming song data already explicitly has userVote (e.g. from REST API), use it.
+            if ('userVote' in newSong) return newSong;
+
+            // Otherwise, preserve our local userVote so socket updates don't reset button highlights
+            const existingSong = state.songs.find(s => s.id === newSong.id);
+            if (existingSong && 'userVote' in existingSong) {
+                return { ...newSong, userVote: existingSong.userVote };
+            }
+            return newSong;
+        });
+
+        return { songs: mergedSongs, isLoading: false };
+    }),
     setLoading: (isLoading) => set({ isLoading }),
 
     addSong: (song) => set((state) => ({
@@ -13,12 +28,6 @@ export const useQueueStore = create((set) => ({
 
     removeSong: (songId) => set((state) => ({
         songs: state.songs.filter(s => s.id !== songId),
-    })),
-
-    updateSongVote: (songId, voteScore, userVote) => set((state) => ({
-        songs: state.songs.map(s =>
-            s.id === songId ? { ...s, vote_score: voteScore, userVote } : s
-        ),
     })),
 
     clearQueue: () => set({ songs: [] }),

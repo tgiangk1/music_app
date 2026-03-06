@@ -5,10 +5,11 @@ import { verifyToken } from '../middlewares/auth.js';
 import { requireRoomOwnerOrAdmin } from '../middlewares/role.js';
 import { fetchVideoMetadata, fetchPlaylistVideos, extractPlaylistId } from '../services/youtube.js';
 import { logActivity } from '../services/socket.js';
+import { sendSlackNotification } from '../services/slack.js';
 
 const router = Router();
 
-// Helper: get queue for a room sorted by vote_score desc, then position
+// Helper: get queue for a room sorted by position
 function getQueueForRoom(roomId) {
     const db = getDb();
     return db.prepare(`
@@ -16,7 +17,7 @@ function getQueueForRoom(roomId) {
     FROM songs s
     JOIN users u ON s.added_by = u.id
     WHERE s.room_id = ?
-    ORDER BY s.is_playing DESC, s.vote_score DESC, s.position ASC, s.created_at ASC
+    ORDER BY s.is_playing DESC, s.position ASC, s.created_at ASC
   `).all(roomId);
 }
 
@@ -46,19 +47,7 @@ router.get('/:slug/songs', verifyToken, (req, res) => {
     }
 
     const songs = getQueueForRoom(room.id);
-
-    // Attach user's vote to each song
-    const userId = req.user.userId;
-    const votes = db.prepare('SELECT song_id, type FROM votes WHERE user_id = ?').all(userId);
-    const voteMap = {};
-    votes.forEach(v => { voteMap[v.song_id] = v.type; });
-
-    const songsWithVotes = songs.map(s => ({
-        ...s,
-        userVote: voteMap[s.id] || null,
-    }));
-
-    res.json({ songs: songsWithVotes });
+    res.json({ songs });
 });
 
 // POST /api/rooms/:slug/songs — add song
@@ -113,6 +102,22 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
             }
         } else {
             return res.status(400).json({ error: 'YouTube URL or videoId is required' });
+        }
+
+        // Feature 3: Block List check
+        const isBlocked = db.prepare(`
+            SELECT type, value FROM room_blocklist 
+            WHERE room_id = ? AND (
+                (type = 'video' AND value = ?) OR 
+                (type = 'channel' AND value = ? COLLATE NOCASE)
+            )
+        `).get(room.id, metadata.videoId, metadata.channelName);
+
+        if (isBlocked) {
+            return res.status(403).json({
+                error: `This ${isBlocked.type} is blocked in this room by the owner`,
+                code: 'BLOCKED_ITEM'
+            });
         }
 
         // Feature 7: Check if song already in queue
@@ -175,6 +180,11 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
         // Phase 3: Log activity
         logActivity(db, room.id, req.user.userId, 'song_add', { songTitle: metadata.title });
 
+        // Feature 5: Slack Webhook Notification
+        sendSlackNotification(room.id, {
+            text: `🎵 *${req.user.displayName}* added a new song to *${room.name}*\n<https://youtube.com/watch?v=${metadata.videoId}|${metadata.title}>`,
+        });
+
         const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(id);
         res.status(201).json({
             song,
@@ -210,6 +220,11 @@ router.post('/:slug/songs/import-playlist', verifyToken, async (req, res) => {
             db.prepare('SELECT youtube_id FROM songs WHERE room_id = ?').all(room.id).map(s => s.youtube_id)
         );
 
+        // Get blocklist to skip blocked videos
+        const blocklist = db.prepare('SELECT type, value FROM room_blocklist WHERE room_id = ?').all(room.id);
+        const blockedVideos = new Set(blocklist.filter(b => b.type === 'video').map(b => b.value));
+        const blockedChannels = new Set(blocklist.filter(b => b.type === 'channel').map(b => b.value.toLowerCase()));
+
         let added = 0;
         let skipped = 0;
         const maxPos = db.prepare('SELECT MAX(position) as pos FROM songs WHERE room_id = ?').get(room.id);
@@ -231,6 +246,11 @@ router.post('/:slug/songs/import-playlist', verifyToken, async (req, res) => {
         const batchInsert = db.transaction(() => {
             for (const video of videos) {
                 if (existingIds.has(video.videoId)) {
+                    skipped++;
+                    continue;
+                }
+
+                if (blockedVideos.has(video.videoId) || blockedChannels.has(video.channelName?.toLowerCase() || '')) {
                     skipped++;
                     continue;
                 }
@@ -276,6 +296,12 @@ router.post('/:slug/songs/import-playlist', verifyToken, async (req, res) => {
 
         emitQueueUpdate(req, req.params.slug, room.id);
 
+        if (added > 0) {
+            sendSlackNotification(room.id, {
+                text: `🎵 *${req.user.displayName || 'Someone'}* imported ${added} songs into *${room.name}*`,
+            });
+        }
+
         res.json({
             message: `Imported ${added} songs (${skipped} duplicates skipped)`,
             added,
@@ -285,6 +311,130 @@ router.post('/:slug/songs/import-playlist', verifyToken, async (req, res) => {
     } catch (err) {
         console.error('Playlist import error:', err);
         res.status(500).json({ error: 'Failed to import playlist' });
+    }
+});
+
+// POST /api/rooms/:slug/songs/push-playlist — Feature 4: Push Saved Playlist to Room
+router.post('/:slug/songs/push-playlist', verifyToken, async (req, res) => {
+    try {
+        const { playlistId } = req.body;
+        if (!playlistId) {
+            return res.status(400).json({ error: 'Playlist ID is required' });
+        }
+
+        const db = getDb();
+        const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
+        if (!room) {
+            return res.status(404).json({ error: 'Room not found' });
+        }
+
+        // Verify playlist belongs to user
+        const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND user_id = ?').get(playlistId, req.user.userId || req.user.id);
+        if (!playlist) {
+            return res.status(404).json({ error: 'Playlist not found or unauthorized' });
+        }
+
+        const videos = db.prepare('SELECT * FROM playlist_songs WHERE playlist_id = ? ORDER BY order_index ASC').all(playlistId);
+        if (!videos || videos.length === 0) {
+            return res.status(400).json({ error: 'Playlist is empty' });
+        }
+
+        // Get existing songs in queue to skip duplicates
+        const existingIds = new Set(
+            db.prepare('SELECT youtube_id FROM songs WHERE room_id = ?').all(room.id).map(s => s.youtube_id)
+        );
+
+        // Get blocklist to skip blocked videos
+        const blocklist = db.prepare('SELECT type, value FROM room_blocklist WHERE room_id = ?').all(room.id);
+        const blockedVideos = new Set(blocklist.filter(b => b.type === 'video').map(b => b.value));
+        const blockedChannels = new Set(blocklist.filter(b => b.type === 'channel').map(b => b.value.toLowerCase()));
+
+        let added = 0;
+        let skipped = 0;
+        const maxPos = db.prepare('SELECT MAX(position) as pos FROM songs WHERE room_id = ?').get(room.id);
+        let position = (maxPos?.pos || 0) + 1;
+
+        // Check song limit
+        let userSongCount = 0;
+        if (room.song_limit > 0) {
+            userSongCount = db.prepare(
+                'SELECT COUNT(*) as count FROM songs WHERE room_id = ? AND added_by = ?'
+            ).get(room.id, req.user.userId || req.user.id).count;
+        }
+
+        const insertSong = db.prepare(`
+      INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+        const batchInsert = db.transaction(() => {
+            for (const video of videos) {
+                if (existingIds.has(video.youtube_id)) {
+                    skipped++;
+                    continue;
+                }
+
+                if (blockedVideos.has(video.youtube_id) || blockedChannels.has(video.channel_name?.toLowerCase() || '')) {
+                    skipped++;
+                    continue;
+                }
+
+                // Song limit check
+                if (room.song_limit > 0 && (userSongCount + added) >= room.song_limit) {
+                    break;
+                }
+
+                const id = uuidv4();
+                insertSong.run(id, room.id, video.youtube_id, video.title, video.thumbnail, video.duration, video.channel_name, req.user.userId || req.user.id, position);
+                position++;
+                added++;
+            }
+        });
+
+        batchInsert();
+
+        // Auto-play first song if queue was empty
+        const currentPlaying = db.prepare('SELECT id FROM songs WHERE room_id = ? AND is_playing = 1').get(room.id);
+        if (!currentPlaying) {
+            const firstSong = db.prepare(`
+        SELECT * FROM songs WHERE room_id = ?
+        ORDER BY position ASC LIMIT 1
+      `).get(room.id);
+
+            if (firstSong) {
+                db.prepare('UPDATE songs SET is_playing = 1 WHERE id = ?').run(firstSong.id);
+
+                const { playerStates } = await import('./player.js');
+                const stateObj = {
+                    videoId: firstSong.youtube_id,
+                    state: 'playing',
+                    currentTime: 0,
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: req.user.userId || req.user.id,
+                };
+                playerStates.set(req.params.slug, stateObj);
+                const io = req.app.get('io');
+                io.of(`/room/${req.params.slug}`).emit('player:sync', stateObj);
+            }
+        }
+
+        emitQueueUpdate(req, req.params.slug, room.id);
+
+        if (added > 0) {
+            sendSlackNotification(room.id, {
+                text: `🎵 *${req.user.displayName || 'Someone'}* pushed ${added} songs into *${room.name}*`,
+            });
+        }
+
+        res.json({
+            message: `Pushed ${added} songs (${skipped} duplicates skipped)`,
+            added,
+            skipped,
+            total: videos.length,
+        });
+    } catch (err) {
+        console.error('Playlist push error:', err);
+        res.status(500).json({ error: 'Failed to push playlist' });
     }
 });
 
@@ -344,53 +494,7 @@ router.delete('/:slug/songs/:id', verifyToken, (req, res) => {
     res.json({ message: 'Song removed' });
 });
 
-// POST /api/rooms/:slug/songs/:id/vote — vote on song
-router.post('/:slug/songs/:id/vote', verifyToken, (req, res) => {
-    const { type } = req.body;
-    if (!type || !['up', 'down'].includes(type)) {
-        return res.status(400).json({ error: 'Vote type must be "up" or "down"' });
-    }
 
-    const db = getDb();
-    const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
-    if (!room) {
-        return res.status(404).json({ error: 'Room not found' });
-    }
-
-    const song = db.prepare('SELECT * FROM songs WHERE id = ? AND room_id = ?').get(req.params.id, room.id);
-    if (!song) {
-        return res.status(404).json({ error: 'Song not found' });
-    }
-
-    const userId = req.user.userId;
-    const existingVote = db.prepare('SELECT * FROM votes WHERE song_id = ? AND user_id = ?').get(song.id, userId);
-
-    const updateVoteScore = db.transaction(() => {
-        if (existingVote) {
-            if (existingVote.type === type) {
-                // Remove vote (toggle)
-                db.prepare('DELETE FROM votes WHERE song_id = ? AND user_id = ?').run(song.id, userId);
-                const delta = type === 'up' ? -1 : 1;
-                db.prepare('UPDATE songs SET vote_score = vote_score + ? WHERE id = ?').run(delta, song.id);
-            } else {
-                // Change vote
-                db.prepare('UPDATE votes SET type = ? WHERE song_id = ? AND user_id = ?').run(type, song.id, userId);
-                const delta = type === 'up' ? 2 : -2;
-                db.prepare('UPDATE songs SET vote_score = vote_score + ? WHERE id = ?').run(delta, song.id);
-            }
-        } else {
-            // New vote
-            db.prepare('INSERT INTO votes (song_id, user_id, type) VALUES (?, ?, ?)').run(song.id, userId, type);
-            const delta = type === 'up' ? 1 : -1;
-            db.prepare('UPDATE songs SET vote_score = vote_score + ? WHERE id = ?').run(delta, song.id);
-        }
-    });
-
-    updateVoteScore();
-    emitQueueUpdate(req, req.params.slug, room.id);
-
-    res.json({ message: 'Vote recorded' });
-});
 
 // PUT /api/rooms/:slug/songs/reorder — reorder queue [Any member]
 router.put('/:slug/songs/reorder', verifyToken, (req, res) => {

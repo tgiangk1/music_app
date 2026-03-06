@@ -66,16 +66,18 @@ export default function EmojiReactions({ socket }) {
                 </button>
 
                 {showBar && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-card/95 backdrop-blur-xl border border-border rounded-2xl p-2 flex gap-1 animate-fade-in z-20">
-                        {EMOJIS.map(emoji => (
-                            <button
-                                key={emoji}
-                                onClick={() => { sendReaction(emoji); setShowBar(false); }}
-                                className="text-xl sm:text-2xl p-1.5 rounded-xl hover:bg-card-hover hover:scale-125 transition-all"
-                            >
-                                {emoji}
-                            </button>
-                        ))}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20">
+                        <div className="bg-card/95 backdrop-blur-xl border border-border rounded-2xl p-2 flex gap-1 animate-fade-in">
+                            {EMOJIS.map(emoji => (
+                                <button
+                                    key={emoji}
+                                    onClick={() => sendReaction(emoji)}
+                                    className="text-xl sm:text-2xl p-1.5 rounded-xl hover:bg-card-hover hover:scale-125 transition-all"
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

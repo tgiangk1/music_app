@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
+import { useSocket } from '../../hooks/useSocket';
 
 const ACTION_CONFIG = {
     join: { icon: '🟢', label: 'joined', color: 'text-success' },
@@ -18,6 +19,7 @@ export default function ActivityFeed({ slug }) {
     const [activities, setActivities] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
+    const { socket } = useSocket(slug);
 
     useEffect(() => {
         if (!slug || !isOpen) return;
@@ -28,13 +30,26 @@ export default function ActivityFeed({ slug }) {
             .finally(() => setIsLoading(false));
     }, [slug, isOpen]);
 
+    useEffect(() => {
+        if (!socket) return;
+        const handleNewActivity = (activity) => {
+            setActivities(prev => {
+                if (prev.some(a => a.id === activity.id)) return prev;
+                return [activity, ...prev].slice(0, 30);
+            });
+        };
+        socket.on('activity:new', handleNewActivity);
+        return () => socket.off('activity:new', handleNewActivity);
+    }, [socket]);
+
     const formatTime = (dateStr) => {
-        const d = new Date(dateStr);
+        const safeDate = dateStr.endsWith('Z') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
+        const d = new Date(safeDate);
         const now = new Date();
         const diffMs = now - d;
         const diffMins = Math.floor(diffMs / 60000);
 
-        if (diffMins < 1) return 'just now';
+        if (diffMins < 1 || isNaN(diffMins)) return 'just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
         return d.toLocaleDateString([], { month: 'short', day: 'numeric' });

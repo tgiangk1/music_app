@@ -23,6 +23,15 @@ export function initSocketIO(server) {
     // Dynamic namespace for rooms: /room/:slug
     const roomNsp = io.of(/^\/room\/[\w-]+$/);
 
+    // Default global namespace for app-wide notifications (e.g., public event started)
+    io.on('connection', (socket) => {
+        // Just a passive listener, no full auth required for receiving broadcasts
+        console.log(`🔌 Global client connected: ${socket.id}`);
+        socket.on('disconnect', () => {
+            console.log(`🔌 Global client disconnected: ${socket.id}`);
+        });
+    });
+
     roomNsp.use((socket, next) => {
         // JWT authentication middleware
         const token = socket.handshake.auth?.token;
@@ -335,23 +344,23 @@ export function initSocketIO(server) {
             socket.emit('chat:history', formatted);
         });
 
-        // Feature 6: Log join activity
-        {
-            const db = getDb();
-            logActivity(db, socket.roomId, socket.user.userId, 'join', {
-                displayName: socket.user.displayName,
-            });
-        }
+        // Feature 6: Log join activity (Disabled DB logging, handled fully via member:join frontend toast now)
+        // {
+        //     const db = getDb();
+        //     logActivity(db, socket.roomId, socket.user.userId, 'join', {
+        //         displayName: socket.user.displayName,
+        //     });
+        // }
 
         // Disconnect
         socket.on('disconnect', () => {
             console.log(`🔌 ${socket.user.displayName} disconnected from room: ${slug}`);
 
-            // Feature 6: Log leave activity
-            const db = getDb();
-            logActivity(db, socket.roomId, socket.user.userId, 'leave', {
-                displayName: socket.user.displayName,
-            });
+            // Feature 6: Log leave activity (Disabled DB logging, handled fully via member:leave frontend toast)
+            // const db = getDb();
+            // logActivity(db, socket.roomId, socket.user.userId, 'leave', {
+            //     displayName: socket.user.displayName,
+            // });
 
             if (onlineMembers.has(slug)) {
                 onlineMembers.get(slug).delete(socket.id);
@@ -360,7 +369,10 @@ export function initSocketIO(server) {
                 }
             }
 
-            socket.nsp.emit('member:leave', { userId: socket.user.userId });
+            socket.nsp.emit('member:leave', {
+                userId: socket.user.userId,
+                displayName: socket.user.displayName
+            });
 
             // Updated member list
             if (onlineMembers.has(slug)) {
@@ -394,6 +406,25 @@ function logActivity(db, roomId, userId, actionType, metadata = {}) {
     const id = uuidv4();
     db.prepare(`INSERT INTO activity_log (id, room_id, user_id, action_type, metadata) VALUES (?, ?, ?, ?, ?)`)
         .run(id, roomId, userId, actionType, JSON.stringify(metadata));
+
+    // Emit live event to room
+    if (io) {
+        try {
+            const room = db.prepare('SELECT slug FROM rooms WHERE id = ?').get(roomId);
+            if (room) {
+                const user = db.prepare('SELECT display_name FROM users WHERE id = ?').get(userId);
+                io.of(`/room/${room.slug}`).emit('activity:new', {
+                    id,
+                    action_type: actionType,
+                    metadata,
+                    created_at: new Date().toISOString(),
+                    display_name: user ? user.display_name : 'System'
+                });
+            }
+        } catch (e) {
+            console.error('Failed to emit activity', e);
+        }
+    }
 }
 
 export { logActivity };

@@ -66,13 +66,53 @@ export function useSocket(slug) {
 
         socket.on('member:join', (member) => {
             setOnlineMembers((prev) => {
-                if (prev.some(m => m.userId === member.userId)) return prev;
+                // Deduplicate: If they are already in the array, don't show the toast again (prevents Strict Mode / multi-listener spam)
+                const isExisting = prev.some(m => m.userId === member.userId);
+
+                if (!isExisting && member.userId !== useAuthStore.getState().user?.id) {
+                    // Only toast for *other* people, not ourselves, and only if they weren't already here
+                    toast(`${member.displayName} joined the room`, {
+                        id: `join-${member.userId}`, // Deduplicates toasts firing at the exact same ms
+                        icon: '👋',
+                        style: {
+                            borderRadius: '100px',
+                            background: '#2a2a3d',
+                            color: '#fff',
+                            padding: '8px 16px',
+                            fontSize: '13px'
+                        },
+                        position: 'bottom-left'
+                    });
+                }
+
+                if (isExisting) return prev;
                 return [...prev, member];
             });
         });
 
-        socket.on('member:leave', ({ userId }) => {
-            setOnlineMembers((prev) => prev.filter(m => m.userId !== userId));
+        socket.on('member:leave', ({ userId, displayName }) => {
+            // Find the member name before they are removed
+            setOnlineMembers((prev) => {
+                const isExisting = prev.some(m => m.userId === userId);
+                const member = prev.find(m => m.userId === userId);
+
+                // Only toast if they were actually in the list (prevents disconnect spam on fresh reloads)
+                if (isExisting && userId !== useAuthStore.getState().user?.id) {
+                    toast(`${member?.displayName || displayName || 'Someone'} left the room`, {
+                        id: `leave-${userId}`, // Deduplicates toasts
+                        icon: '🚶',
+                        style: {
+                            borderRadius: '100px',
+                            background: '#2a2a3d',
+                            color: '#9ca3af',
+                            padding: '8px 16px',
+                            fontSize: '13px'
+                        },
+                        position: 'bottom-left'
+                    });
+                }
+                return prev.filter(m => m.userId !== userId);
+            });
         });
 
         // Notifications

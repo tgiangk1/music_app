@@ -44,11 +44,11 @@ export default function QueueHistory({ slug, onReplay }) {
 
     if (isLoading) {
         return (
-            <div className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
+            <div className="glass-card p-6 flex flex-col min-h-[450px] max-h-[450px]">
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
                     <div className="skeleton h-6 w-32" />
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1 overflow-hidden">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="skeleton h-14 rounded-xl" />
                     ))}
@@ -58,8 +58,8 @@ export default function QueueHistory({ slug, onReplay }) {
     }
 
     return (
-        <div className="glass-card p-6">
-            <div className="flex items-center justify-between mb-4">
+        <div className="glass-card p-6 flex flex-col min-h-[450px] max-h-[450px]">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <h3 className="font-display text-lg font-semibold flex items-center gap-2">
                     <svg className="w-5 h-5 text-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -75,11 +75,11 @@ export default function QueueHistory({ slug, onReplay }) {
             </div>
 
             {history.length === 0 ? (
-                <div className="text-center py-8 animate-fade-in">
+                <div className="text-center flex-1 flex flex-col items-center justify-center animate-fade-in">
                     <p className="text-text-muted text-sm">No songs played yet</p>
                 </div>
             ) : (
-                <div className="space-y-1.5 max-h-96 overflow-y-auto scrollbar-thin">
+                <div className="space-y-1.5 flex-1 overflow-y-scroll scrollbar-thin pr-1 min-h-0">
                     {history.map((item) => (
                         <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-card-hover transition-all group">
                             <div className="flex-shrink-0 w-10 h-8 rounded-lg overflow-hidden bg-card">

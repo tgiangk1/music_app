@@ -20,6 +20,10 @@ import ListeningAvatars from '../components/Social/ListeningAvatars';
 import PersonalStats from '../components/Social/PersonalStats';
 import Leaderboard from '../components/Social/Leaderboard';
 import ActivityFeed from '../components/Social/ActivityFeed';
+// Phase 4: Room Schedule
+import RoomSchedule from '../components/Room/RoomSchedule';
+import RoomBlocklist from '../components/Room/RoomBlocklist';
+import SlackWebhookConfig from '../components/Room/SlackWebhookConfig';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -51,7 +55,6 @@ export default function Room() {
         isLoading: queueLoading,
         addSong,
         removeSong,
-        voteSong,
         clearQueue,
         reorderQueue,
     } = useQueue(slug);
@@ -129,6 +132,48 @@ export default function Room() {
         prevQueueLenRef.current = songs.length;
     }, [songs, notify, user?.id]);
 
+    // Feature 2: Schedule event notification listening
+    useEffect(() => {
+        if (!socket) return;
+        const onScheduleTriggered = (data) => {
+            if (data.shouldNotify) {
+                toast.custom((t) => (
+                    <div
+                        className={`glass-card p-4 border-primary/30 max-w-sm w-full shadow-glow-lg flex gap-3 cursor-pointer ${t.visible ? 'animate-fade-in' : 'animate-slide-up opacity-0'
+                            }`}
+                        onClick={() => {
+                            toast.dismiss(t.id);
+                        }}
+                    >
+                        <div className="flex-shrink-0 text-3xl">🔔</div>
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-text-primary font-bold text-sm">Event Started!</h4>
+                            <p className="text-text-secondary text-sm truncate">{data.title}</p>
+                            <p className="text-primary text-xs font-semibold mt-1 flex items-center gap-1">
+                                Join now
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                                </svg>
+                            </p>
+                        </div>
+                    </div>
+                ), { duration: 10000, position: 'top-right' });
+
+                if (Notification.permission === 'granted') {
+                    new Notification(`Event Started!`, {
+                        body: data.title,
+                        icon: '/favicon.ico'
+                    });
+                }
+            } else {
+                toast(`Scheduled task executed: ${data.title}`);
+            }
+        };
+
+        socket.on('room:schedule_triggered', onScheduleTriggered);
+        return () => socket.off('room:schedule_triggered', onScheduleTriggered);
+    }, [socket]);
+
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -160,8 +205,18 @@ export default function Room() {
                             </svg>
                         </div>
                         <div>
-                            <h1 className="font-display text-lg font-semibold leading-tight">{room?.name}</h1>
-                            <div className="flex items-center gap-2 text-xs text-text-muted">
+                            <div className="flex items-center gap-2">
+                                <h1 className="font-display text-lg font-semibold leading-tight">{room?.name}</h1>
+                                {room?.creator_name && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface/80 text-text-muted border border-border flex items-center gap-1">
+                                        <svg className="w-3 h-3 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                                            <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
+                                        </svg>
+                                        Host: {room.creator_name}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5">
                                 <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-success' : 'bg-danger'}`} />
                                 <span>{onlineMembers.length} online</span>
                                 {room?.song_limit > 0 && (
@@ -176,6 +231,21 @@ export default function Room() {
                     <div className="flex items-center gap-2">
                         {/* Phase 3: Listening avatars */}
                         <ListeningAvatars members={onlineMembers} />
+
+                        <button
+                            onClick={() => {
+                                const url = `${window.location.origin}/embed/${slug}`;
+                                const embedCode = `<iframe src="${url}" width="100%" height="400" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                                navigator.clipboard.writeText(embedCode);
+                                toast.success('Embed code copied to clipboard!');
+                            }}
+                            className="btn-ghost text-sm p-2 hidden sm:flex"
+                            title="Copy Embed Code"
+                        >
+                            <svg className="w-5 h-5 text-text-muted hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                            </svg>
+                        </button>
 
                         <button
                             onClick={() => setShowHelp(true)}
@@ -199,7 +269,7 @@ export default function Room() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 pt-6 pb-12">
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 room-layout">
                     {/* Left: Player + Queue */}
                     <div className="space-y-6">
@@ -247,7 +317,6 @@ export default function Room() {
                                     isLoading={queueLoading}
                                     isRoomOwner={isRoomOwner}
                                     userId={user?.id}
-                                    onVote={voteSong}
                                     onRemove={removeSong}
                                     onClear={clearQueue}
                                     onReorder={reorderQueue}
@@ -281,6 +350,15 @@ export default function Room() {
 
                         {/* Phase 3: Activity Feed */}
                         <ActivityFeed slug={slug} />
+
+                        {/* Phase 4: Room Schedule (Owner only) */}
+                        {isRoomOwner && <RoomSchedule slug={slug} />}
+
+                        {/* Phase 4: Room Blocklist (Owner only) */}
+                        {isRoomOwner && <RoomBlocklist slug={slug} />}
+
+                        {/* Phase 4: Slack Webhook (Owner only) */}
+                        {isRoomOwner && <SlackWebhookConfig slug={slug} />}
                     </div>
                 </div>
             </main>

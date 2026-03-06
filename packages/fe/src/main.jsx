@@ -9,6 +9,7 @@ import AuthCallback from './pages/AuthCallback'
 import Home from './pages/Home'
 import Room from './pages/Room'
 import AdminPanel from './pages/AdminPanel'
+import EmbedRoom from './pages/EmbedRoom'
 import ProtectedRoute from './components/ProtectedRoute'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                         <Room />
                     </ProtectedRoute>
                 } />
+                <Route path="/embed/:slug" element={<EmbedRoom />} />
                 <Route path="/admin" element={
                     <ProtectedRoute requireAdmin>
                         <AdminPanel />

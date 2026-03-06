@@ -38,9 +38,11 @@ export default function MembersList({ members, isAdmin, roomSlug, onClose }) {
                             </div>
 
                             <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium truncate">{member.displayName}</p>
-                                <span className={member.role === 'admin' ? 'badge-admin' : 'badge-member'}>
-                                    {member.role}
+                                <p className="text-sm font-medium truncate">
+                                    {member.displayName}
+                                </p>
+                                <span className={member.isOwner ? 'badge-admin' : 'badge-member'}>
+                                    {member.isOwner ? 'Host' : 'Listener'}
                                 </span>
                             </div>
                         </div>

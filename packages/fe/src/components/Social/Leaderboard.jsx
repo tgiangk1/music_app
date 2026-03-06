@@ -65,16 +65,8 @@ export default function Leaderboard({ slug }) {
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{entry.display_name}</p>
                             <p className="text-[10px] text-text-muted">
-                                {entry.total_songs} songs · {entry.songs_played} played
+                                {entry.total_songs} songs added · {entry.songs_played} played
                             </p>
-                        </div>
-
-                        {/* Score */}
-                        <div className="flex-shrink-0 text-right">
-                            <span className={`text-sm font-bold ${entry.current_vote_score > 0 ? 'text-success' : entry.current_vote_score < 0 ? 'text-danger' : 'text-text-muted'}`}>
-                                {entry.current_vote_score > 0 ? '+' : ''}{entry.current_vote_score}
-                            </span>
-                            <p className="text-[10px] text-text-muted">score</p>
                         </div>
                     </div>
                 ))}

@@ -17,6 +17,11 @@ import playerRoutes from './routes/player.js';
 import userRoutes from './routes/users.js';
 import youtubeRoutes from './routes/youtube.js';
 import socialRoutes from './routes/social.js';
+import playlistsRoutes from './routes/playlists.js';
+import schedulesRoutes from './routes/schedules.js';
+import blocklistRoutes from './routes/blocklist.js';
+import webhookRoutes from './routes/webhooks.js';
+import { initCronJobs } from './services/cron.js';
 
 const app = express();
 const server = createServer(app);
@@ -28,8 +33,15 @@ initDatabase();
 const io = initSocketIO(server);
 app.set('io', io);
 
+// Init Cron Jobs
+initCronJobs(io);
+
 // Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  frameguard: false // allow embedding in iframes (Feature 4: Embed Widget)
+}));
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
@@ -44,8 +56,12 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/rooms', songRoutes);
 app.use('/api/rooms', playerRoutes);
 app.use('/api/rooms', socialRoutes);
+app.use('/api/rooms', schedulesRoutes);
+app.use('/api/rooms', blocklistRoutes);
+app.use('/api/rooms', webhookRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/youtube', youtubeRoutes);
+app.use('/api/playlists', playlistsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -5,7 +5,6 @@ export default function QueueList({
     isLoading,
     isRoomOwner,
     userId,
-    onVote,
     onRemove,
     onClear,
     onReorder,
@@ -22,11 +21,11 @@ export default function QueueList({
 
     if (isLoading) {
         return (
-            <div className="glass-card p-6">
+            <div className="glass-card p-6 flex flex-col min-h-[450px] max-h-[450px]">
                 <div className="flex items-center justify-between mb-4">
                     <div className="skeleton h-6 w-32" />
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1 overflow-hidden">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="skeleton h-16 rounded-xl" />
                     ))}
@@ -36,8 +35,8 @@ export default function QueueList({
     }
 
     return (
-        <div className="glass-card p-6">
-            <div className="flex items-center justify-between mb-4">
+        <div className="glass-card p-6 flex flex-col min-h-[450px] max-h-[450px]">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <h3 className="font-display text-lg font-semibold flex items-center gap-2">
                     <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
@@ -54,8 +53,8 @@ export default function QueueList({
             </div>
 
             {songs.length === 0 ? (
-                <div className="text-center py-12 animate-fade-in">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-card flex items-center justify-center">
+                <div className="text-center flex-1 flex flex-col items-center justify-center animate-fade-in">
+                    <div className="w-16 h-16 mb-4 rounded-full bg-card flex items-center justify-center">
                         <svg className="w-8 h-8 text-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
                         </svg>
@@ -67,7 +66,7 @@ export default function QueueList({
                 <DragDropContext onDragEnd={handleDragEnd}>
                     <Droppable droppableId="queue">
                         {(provided) => (
-                            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 flex-1 overflow-y-scroll scrollbar-thin pr-1 min-h-0">
                                 {songs.map((song, index) => (
                                     <Draggable key={song.id} draggableId={song.id} index={index}>
                                         {(provided, snapshot) => (
@@ -100,38 +99,6 @@ export default function QueueList({
                                                         {song.added_by_name}
                                                         {song.duration > 0 && ` · ${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, '0')}`}
                                                     </p>
-                                                </div>
-
-                                                {/* Vote buttons */}
-                                                <div className="flex items-center gap-1 flex-shrink-0">
-                                                    <button
-                                                        onClick={() => onVote(song.id, 'up')}
-                                                        className={`p-1.5 rounded-lg transition-colors ${song.userVote === 'up'
-                                                            ? 'text-primary bg-primary/10'
-                                                            : 'text-text-muted hover:text-primary hover:bg-primary/10'
-                                                            }`}
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-                                                        </svg>
-                                                    </button>
-
-                                                    <span className={`text-xs font-bold min-w-[20px] text-center ${song.vote_score > 0 ? 'text-primary' : song.vote_score < 0 ? 'text-danger' : 'text-text-muted'
-                                                        }`}>
-                                                        {song.vote_score}
-                                                    </span>
-
-                                                    <button
-                                                        onClick={() => onVote(song.id, 'down')}
-                                                        className={`p-1.5 rounded-lg transition-colors ${song.userVote === 'down'
-                                                            ? 'text-danger bg-danger/10'
-                                                            : 'text-text-muted hover:text-danger hover:bg-danger/10'
-                                                            }`}
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                                        </svg>
-                                                    </button>
                                                 </div>
 
                                                 {/* Remove button */}

@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import SavedPlaylists from './SavedPlaylists';
 
 export default function SearchAddSong({ onAdd, slug, songs = [] }) {
-    const [mode, setMode] = useState('search'); // 'search' | 'url' | 'playlist'
+    const [mode, setMode] = useState('search'); // 'search' | 'url' | 'playlist' | 'saved'
     const [query, setQuery] = useState('');
     const [url, setUrl] = useState('');
     const [results, setResults] = useState([]);
@@ -119,6 +120,7 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                     { key: 'search', icon: '🔍', label: 'Search' },
                     { key: 'url', icon: '🔗', label: 'URL' },
                     { key: 'playlist', icon: '📋', label: 'Playlist' },
+                    { key: 'saved', icon: '💾', label: 'Saved' },
                 ].map(tab => (
                     <button
                         key={tab.key}
@@ -265,6 +267,13 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                             ✅ {importProgress.added} songs added · {importProgress.skipped} duplicates skipped · {importProgress.total} total in playlist
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Saved Mode */}
+            {mode === 'saved' && (
+                <div className="pt-2">
+                    <SavedPlaylists slug={slug} />
                 </div>
             )}
         </div>
