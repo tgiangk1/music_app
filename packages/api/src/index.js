@@ -72,7 +72,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`\uD83C\uDFB5 Antigravity Jukebox API running on port ${PORT}`);
+  console.log(`🎵 Antigravity Jukebox API running on port ${PORT}`);
 });
 
 export default app;
