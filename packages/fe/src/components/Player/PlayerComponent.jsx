@@ -228,12 +228,13 @@ export default function PlayerComponent({
                                 <VolumeIcon />
                             </button>
 
-                            {/* Volume Slider Popup (absolute, no layout shift) */}
+                            {/* Volume Slider Popup */}
                             {showVolume && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-card border border-border rounded-xl shadow-lg z-50 animate-fade-in"
-                                    style={{ width: '40px', height: '120px' }}
+                                <div
+                                    className="absolute bottom-full right-0 mb-2 p-3 bg-card border border-border rounded-xl shadow-lg z-50"
+                                    style={{ width: '40px', height: '130px' }}
                                 >
-                                    <div className="w-full h-full flex items-center justify-center">
+                                    <div className="w-full flex flex-col items-center h-full">
                                         <input
                                             type="range"
                                             min="0"
@@ -245,13 +246,12 @@ export default function PlayerComponent({
                                                 writingMode: 'vertical-lr',
                                                 direction: 'rtl',
                                                 width: '4px',
-                                                height: '100%',
-                                                background: `linear-gradient(to top, rgb(var(--color-primary, 139 92 246)) ${isMuted ? 0 : volume}%, rgb(var(--color-border, 42 42 61)) ${isMuted ? 0 : volume}%)`,
+                                                height: '80px',
+                                                margin: '0',
+                                                background: `linear-gradient(to top, rgb(var(--color-primary)) ${isMuted ? 0 : volume}%, rgb(var(--color-border)) ${isMuted ? 0 : volume}%)`,
                                             }}
                                         />
-                                    </div>
-                                    <div className="text-center mt-1">
-                                        <span className="text-[10px] text-text-muted font-mono">{isMuted ? 0 : volume}</span>
+                                        <span className="text-[10px] text-text-muted font-mono mt-2">{isMuted ? 0 : volume}</span>
                                     </div>
                                 </div>
                             )}
