@@ -50,16 +50,16 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   # ============================================================================
-  # Job 2: Deploy Backend to Render (Staging)
+  # Job 2: Deploy Backend to Render
   # ============================================================================
   deploy-backend:
-    name: 🚀 Deploy API → Render Staging
+    name: 🚀 Deploy API → Render
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Render Staging
+      - name: Deploy to Render
         run: |
           if [ -z "$RENDER_SERVICE_ID" ]; then
-            echo "### ⏭️ Render Staging skipped — RENDER_STAGING_SERVICE_ID not set" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ⏭️ Render deploy skipped — RENDER_BACKEND_SERVICE_ID not set" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -70,13 +70,13 @@ jobs:
             -d '{"clearCache": "do_not_clear"}')
           
           if [ "$RESPONSE" = "201" ]; then
-            echo "### ✅ Backend deploy triggered on Render Staging" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ✅ Backend deploy triggered on Render" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### ❌ Backend deploy failed (HTTP $RESPONSE)" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
         env:
-          RENDER_SERVICE_ID: ${{ secrets.RENDER_STAGING_SERVICE_ID }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_BACKEND_SERVICE_ID }}
 
   # ============================================================================
   # Job 3: Comment staging URLs
@@ -105,7 +105,7 @@ jobs:
               `| Service | URL | Status |`,
               `|---------|-----|--------|`,
               `| **Frontend** | ${previewUrl} | ✅ Deployed |`,
-              `| **Backend** | Render Staging | ✅ Triggered |`,
+              `| **Backend** | Render | ✅ Triggered |`,
               '',
               `> Deployed from \`${context.sha.substring(0, 7)}\``,
             ].join('\n');
