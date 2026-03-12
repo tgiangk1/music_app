@@ -16,7 +16,6 @@ export function getDb() {
 }
 
 export function initDatabase() {
-  // Ensure data directory exists
   const dataDir = path.dirname(DB_PATH);
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -24,7 +23,6 @@ export function initDatabase() {
 
   db = new Database(DB_PATH);
 
-  // Performance settings
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
@@ -104,7 +102,6 @@ function runMigrations() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
-    -- Indexes
     CREATE INDEX IF NOT EXISTS idx_songs_room ON songs(room_id);
     CREATE INDEX IF NOT EXISTS idx_songs_vote ON songs(room_id, vote_score DESC);
     CREATE INDEX IF NOT EXISTS idx_room_members ON room_members(user_id);
@@ -112,7 +109,6 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
   `);
 
-  // Queue History table
   db.exec(`
     CREATE TABLE IF NOT EXISTS song_history (
       id TEXT PRIMARY KEY,
@@ -131,14 +127,12 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_history_played ON song_history(room_id, played_at DESC);
   `);
 
-  // Song limit per user per room
   try {
     db.exec(`ALTER TABLE rooms ADD COLUMN song_limit INTEGER DEFAULT 0`);
   } catch (e) {
-    // Column already exists — ignore
+    // Column already exists
   }
 
-  // Chat messages
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
@@ -153,7 +147,6 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_chat_room ON chat_messages(room_id, created_at DESC);
   `);
 
-  // Activity log
   db.exec(`
     CREATE TABLE IF NOT EXISTS activity_log (
       id TEXT PRIMARY KEY,

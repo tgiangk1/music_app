@@ -17,16 +17,13 @@ passport.use(new GoogleStrategy(
             const displayName = profile.displayName || email;
             const avatar = profile.photos?.[0]?.value || null;
 
-            // Check if user exists
             let user = db.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId);
 
             if (user) {
-                // Update last seen
                 db.prepare("UPDATE users SET last_seen_at = datetime('now'), display_name = ?, avatar = ? WHERE id = ?")
                     .run(displayName, avatar, user.id);
                 user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
             } else {
-                // Create new user
                 const id = uuidv4();
                 const isFirstAdmin = email === process.env.FIRST_ADMIN_EMAIL;
                 const role = isFirstAdmin ? 'admin' : 'member';
@@ -47,7 +44,6 @@ passport.use(new GoogleStrategy(
     }
 ));
 
-// Serialize/deserialize (not used with JWT, but needed for passport)
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser((id, done) => {
     const db = getDb();

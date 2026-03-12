@@ -7,11 +7,6 @@ export function requireAdmin(req, res, next) {
     next();
 }
 
-/**
- * Middleware: require room owner OR global admin
- * Expects :slug param in route
- * Attaches req.room from DB lookup
- */
 export function requireRoomOwnerOrAdmin(req, res, next) {
     const db = getDb();
     const slug = req.params.slug;

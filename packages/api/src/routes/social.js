@@ -4,7 +4,6 @@ import { verifyToken, optionalAuth } from '../middlewares/auth.js';
 
 const router = Router();
 
-// GET /api/rooms/:slug/activity — Activity feed
 router.get('/:slug/activity', optionalAuth, (req, res) => {
   const db = getDb();
   const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
@@ -21,7 +20,6 @@ router.get('/:slug/activity', optionalAuth, (req, res) => {
     LIMIT ?
   `).all(room.id, limit);
 
-  // Parse metadata JSON
   const formatted = activities.map(a => ({
     ...a,
     metadata: a.metadata ? JSON.parse(a.metadata) : {},
@@ -30,19 +28,13 @@ router.get('/:slug/activity', optionalAuth, (req, res) => {
   res.json({ activities: formatted });
 });
 
-// GET /api/rooms/:slug/stats — Room statistics
 router.get('/:slug/stats', optionalAuth, (req, res) => {
   const db = getDb();
   const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
   if (!room) return res.status(404).json({ error: 'Room not found' });
 
-  // Total songs played
   const songCount = db.prepare('SELECT COUNT(*) as count FROM song_history WHERE room_id = ?').get(room.id);
-
-  // Total duration (sum of all played songs)
   const totalDuration = db.prepare('SELECT COALESCE(SUM(duration), 0) as total FROM song_history WHERE room_id = ?').get(room.id);
-
-  // Total unique participants (from history + current members)
   const participants = db.prepare(`
     SELECT COUNT(DISTINCT user_id) as count FROM (
       SELECT added_by as user_id FROM song_history WHERE room_id = ?
