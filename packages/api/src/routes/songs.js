@@ -37,7 +37,7 @@ function saveToHistory(db, song) {
   `).run(id, song.room_id, song.youtube_id, song.title, song.thumbnail, song.duration, song.channel_name, song.added_by);
 }
 
-// GET /api/rooms/:slug/songs — get queue
+// GET /api/rooms/:slug/songs
 router.get('/:slug/songs', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
@@ -49,9 +49,7 @@ router.get('/:slug/songs', optionalAuth, (req, res) => {
     res.json({ songs });
 });
 
-// POST /api/rooms/:slug/songs — add song
-// Duplicate detection with ?force=true bypass
-// Song limit enforcement
+// POST /api/rooms/:slug/songs
 router.post('/:slug/songs', verifyToken, async (req, res) => {
     try {
         const { url, videoId: directVideoId, title: directTitle, force } = req.body;
@@ -61,7 +59,6 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
             return res.status(404).json({ error: 'Room not found' });
         }
 
-        // Check song limit per user
         if (room.song_limit > 0) {
             const userSongCount = db.prepare(
                 'SELECT COUNT(*) as count FROM songs WHERE room_id = ? AND added_by = ?'
@@ -77,7 +74,6 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
 
         let metadata;
 
-        // Support direct videoId (from search results) or URL
         if (directVideoId) {
             metadata = {
                 videoId: directVideoId,
@@ -86,7 +82,6 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
                 duration: 0,
                 channelName: 'Unknown',
             };
-            // Try to fetch full metadata in background
             fetchVideoMetadata(directVideoId).then(full => {
                 if (full && full.title !== metadata.title) {
                     db.prepare('UPDATE songs SET title = ?, thumbnail = ?, duration = ?, channel_name = ? WHERE youtube_id = ? AND room_id = ?')
@@ -103,7 +98,6 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
             return res.status(400).json({ error: 'YouTube URL or videoId is required' });
         }
 
-        // Check if song already in queue
         const existing = db.prepare('SELECT id FROM songs WHERE room_id = ? AND youtube_id = ?').get(room.id, metadata.videoId);
         if (existing && !force) {
             return res.status(409).json({
@@ -116,12 +110,10 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
             return res.status(200).json({ message: 'Song already in queue', existing: true });
         }
 
-        // Check if song was recently played (in history)
         const inHistory = db.prepare(
             'SELECT id FROM song_history WHERE room_id = ? AND youtube_id = ? ORDER BY played_at DESC LIMIT 1'
         ).get(room.id, metadata.videoId);
 
-        // Get max position
         const maxPos = db.prepare('SELECT MAX(position) as pos FROM songs WHERE room_id = ?').get(room.id);
         const position = (maxPos?.pos || 0) + 1;
 
@@ -131,7 +123,6 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, room.id, metadata.videoId, metadata.title, metadata.thumbnail, metadata.duration, metadata.channelName, req.user.userId, position);
 
-        // If this is the first/only song, mark it as playing
         const songCount = db.prepare('SELECT COUNT(*) as count FROM songs WHERE room_id = ?').get(room.id).count;
         if (songCount === 1) {
             db.prepare('UPDATE songs SET is_playing = 1 WHERE id = ?').run(id);
@@ -151,7 +142,6 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
 
         emitQueueUpdate(req, req.params.slug, room.id);
 
-        // Broadcast notification for browser notifications
         const io = req.app.get('io');
         io.of(`/room/${req.params.slug}`).emit('song:added', {
             title: metadata.title,
@@ -159,7 +149,6 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
             thumbnail: metadata.thumbnail,
         });
 
-        // Log activity
         logActivity(db, room.id, req.user.userId, 'song_add', { songTitle: metadata.title });
 
         const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(id);
@@ -173,7 +162,7 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
     }
 });
 
-// GET /api/rooms/:slug/history — Queue history
+// GET /api/rooms/:slug/history
 router.get('/:slug/history', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
@@ -198,7 +187,7 @@ router.get('/:slug/history', optionalAuth, (req, res) => {
     res.json({ history, total, limit, offset });
 });
 
-// DELETE /api/rooms/:slug/songs/:id — remove song
+// DELETE /api/rooms/:slug/songs/:id
 router.delete('/:slug/songs/:id', verifyToken, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
@@ -211,14 +200,12 @@ router.delete('/:slug/songs/:id', verifyToken, (req, res) => {
         return res.status(404).json({ error: 'Song not found' });
     }
 
-    // Member can only delete their own songs; room owner or admin can delete any
     const isOwner = room.created_by === req.user.userId;
     const isAdmin = req.user.role === 'admin';
     if (!isOwner && !isAdmin && song.added_by !== req.user.userId) {
         return res.status(403).json({ error: 'You can only remove your own songs' });
     }
 
-    // Save to history before deleting (only if it was playing)
     if (song.is_playing) {
         saveToHistory(db, song);
     }
@@ -229,7 +216,7 @@ router.delete('/:slug/songs/:id', verifyToken, (req, res) => {
     res.json({ message: 'Song removed' });
 });
 
-// PUT /api/rooms/:slug/songs/reorder — reorder queue [Any member]
+// PUT /api/rooms/:slug/songs/reorder
 router.put('/:slug/songs/reorder', verifyToken, (req, res) => {
     const { orderedIds } = req.body;
     if (!Array.isArray(orderedIds)) {
@@ -254,7 +241,7 @@ router.put('/:slug/songs/reorder', verifyToken, (req, res) => {
     res.json({ message: 'Queue reordered' });
 });
 
-// DELETE /api/rooms/:slug/songs — clear queue [Owner or Admin]
+// DELETE /api/rooms/:slug/songs
 router.delete('/:slug/songs', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     const db = getDb();
     const room = req.room || db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
@@ -262,7 +249,6 @@ router.delete('/:slug/songs', verifyToken, requireRoomOwnerOrAdmin, (req, res) =
         return res.status(404).json({ error: 'Room not found' });
     }
 
-    // Save all playing songs to history before clearing
     const playingSong = db.prepare('SELECT * FROM songs WHERE room_id = ? AND is_playing = 1').get(room.id);
     if (playingSong) {
         saveToHistory(db, playingSong);

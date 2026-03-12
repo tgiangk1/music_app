@@ -42,10 +42,6 @@ export function verifyToken(req, res, next) {
     }
 }
 
-/**
- * Optional authentication — sets req.user if token present, null otherwise.
- * Use for routes that should work for both authenticated users and guests.
- */
 export function optionalAuth(req, res, next) {
     const authHeader = req.headers.authorization;
 
