@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import YouTube from 'react-youtube';
 import { usePlayer } from '../../hooks/usePlayer';
 import { usePlayerStore } from '../../store/playerStore';
@@ -9,17 +9,67 @@ export default function PlayerComponent({
     currentTime,
     currentSong,
     isRoomOwner,
+    repeatMode,
     emitPlayerSync,
     emitPlayerSkip,
     emitPlayerEnded,
 }) {
-    const { onReady, onStateChange, seekTo, opts } = usePlayer({
+    const { onReady, onStateChange, onError, seekTo, opts } = usePlayer({
         emitPlayerSync,
         emitPlayerEnded,
         isAdmin: isRoomOwner,
+        repeatMode,
     });
 
     const syncedRef = useRef(false);
+    const playerRef = useRef(null);
+
+    // Volume Control — local state, persisted in localStorage
+    const [volume, setVolume] = useState(() => {
+        const saved = localStorage.getItem('jukebox_volume');
+        return saved !== null ? parseInt(saved, 10) : 70;
+    });
+    const [isMuted, setIsMuted] = useState(false);
+    const [showVolume, setShowVolume] = useState(false);
+
+    // Apply volume to YouTube player
+    useEffect(() => {
+        const player = playerRef.current;
+        if (!player) return;
+        try {
+            if (isMuted) {
+                player.mute();
+            } else {
+                player.unMute();
+                player.setVolume(volume);
+            }
+        } catch { }
+    }, [volume, isMuted]);
+
+    // Save volume to localStorage
+    useEffect(() => {
+        localStorage.setItem('jukebox_volume', volume.toString());
+    }, [volume]);
+
+    const handleVolumeChange = (e) => {
+        const val = parseInt(e.target.value, 10);
+        setVolume(val);
+        setIsMuted(false);
+    };
+
+    const toggleMute = () => {
+        setIsMuted(prev => !prev);
+    };
+
+    // Override onReady to capture player ref and set initial volume
+    const handleReady = (event) => {
+        playerRef.current = event.target;
+        try {
+            event.target.setVolume(volume);
+            if (isMuted) event.target.mute();
+        } catch { }
+        onReady(event);
+    };
 
     // Sync player position when receiving state from server (non-owner members)
     useEffect(() => {
@@ -33,6 +83,54 @@ export default function PlayerComponent({
     useEffect(() => {
         syncedRef.current = false;
     }, [videoId]);
+
+    // Progress bar — poll YouTube player for current time
+    const [progress, setProgress] = useState({ current: 0, duration: 0 });
+
+    useEffect(() => {
+        if (!videoId) return;
+        const interval = setInterval(() => {
+            const player = playerRef.current;
+            if (!player) return;
+            try {
+                const current = player.getCurrentTime?.() || 0;
+                const duration = player.getDuration?.() || 0;
+                if (duration > 0) {
+                    setProgress({ current, duration });
+                }
+            } catch { }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [videoId]);
+
+    const formatTime = useCallback((seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${String(s).padStart(2, '0')}`;
+    }, []);
+
+    // Volume icon based on level
+    const VolumeIcon = () => {
+        if (isMuted || volume === 0) {
+            return (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-3.15a.75.75 0 0 1 1.28.53v13.774a.75.75 0 0 1-1.28.53L6.75 14.25H3.75a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75h3Z" />
+                </svg>
+            );
+        }
+        if (volume < 50) {
+            return (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M6.75 8.25l4.72-3.15a.75.75 0 0 1 1.28.53v12.74a.75.75 0 0 1-1.28.53l-4.72-3.15H3.75a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75h3Z" />
+                </svg>
+            );
+        }
+        return (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-3.15a.75.75 0 0 1 1.28.53v12.74a.75.75 0 0 1-1.28.53l-4.72-3.15H3.75a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75h3Z" />
+            </svg>
+        );
+    };
 
     if (!videoId) {
         return (
@@ -59,12 +157,35 @@ export default function PlayerComponent({
                 <YouTube
                     videoId={videoId}
                     opts={opts}
-                    onReady={onReady}
+                    onReady={handleReady}
                     onStateChange={onStateChange}
+                    onError={(e) => {
+                        onError(e);
+                        import('react-hot-toast').then(m => m.default('⚠️ Video unavailable, skipping...', { icon: '⏭️' }));
+                    }}
                     className="w-full h-full"
                     iframeClassName="w-full h-full"
                 />
             </div>
+
+            {/* Progress Bar */}
+            {currentSong && progress.duration > 0 && (
+                <div className="px-4 pt-2">
+                    <div className="w-full h-1 bg-border/50 rounded-full overflow-hidden">
+                        <div
+                            className="h-full rounded-full transition-all duration-1000 ease-linear"
+                            style={{
+                                width: `${(progress.current / progress.duration) * 100}%`,
+                                background: 'linear-gradient(90deg, rgb(var(--color-primary, 139 92 246)), rgb(var(--color-accent, 167 139 250)))',
+                            }}
+                        />
+                    </div>
+                    <div className="flex justify-between mt-1">
+                        <span className="text-[10px] text-text-muted font-mono">{formatTime(progress.current)}</span>
+                        <span className="text-[10px] text-text-muted font-mono">{formatTime(progress.duration)}</span>
+                    </div>
+                </div>
+            )}
 
             {/* Now Playing Bar */}
             {currentSong && (
@@ -92,17 +213,62 @@ export default function PlayerComponent({
                         </div>
                     </div>
 
-                    {isRoomOwner && (
-                        <button
-                            onClick={emitPlayerSkip}
-                            className="btn-ghost p-2 text-text-secondary hover:text-danger"
-                            title="Skip song"
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Volume Control */}
+                        <div
+                            className="relative flex items-center"
+                            onMouseEnter={() => setShowVolume(true)}
+                            onMouseLeave={() => setShowVolume(false)}
                         >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z" />
-                            </svg>
-                        </button>
-                    )}
+                            <button
+                                onClick={toggleMute}
+                                className="btn-ghost p-2 text-text-secondary hover:text-text-primary"
+                                title={isMuted ? 'Unmute' : 'Mute'}
+                            >
+                                <VolumeIcon />
+                            </button>
+
+                            {/* Volume Slider Popup (absolute, no layout shift) */}
+                            {showVolume && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-card border border-border rounded-xl shadow-lg z-50 animate-fade-in"
+                                    style={{ width: '40px', height: '120px' }}
+                                >
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={isMuted ? 0 : volume}
+                                            onChange={handleVolumeChange}
+                                            className="volume-slider-vertical"
+                                            style={{
+                                                writingMode: 'vertical-lr',
+                                                direction: 'rtl',
+                                                width: '4px',
+                                                height: '100%',
+                                                background: `linear-gradient(to top, rgb(var(--color-primary, 139 92 246)) ${isMuted ? 0 : volume}%, rgb(var(--color-border, 42 42 61)) ${isMuted ? 0 : volume}%)`,
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="text-center mt-1">
+                                        <span className="text-[10px] text-text-muted font-mono">{isMuted ? 0 : volume}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {isRoomOwner && (
+                            <button
+                                onClick={emitPlayerSkip}
+                                className="btn-ghost p-2 text-text-secondary hover:text-danger"
+                                title="Skip song"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
