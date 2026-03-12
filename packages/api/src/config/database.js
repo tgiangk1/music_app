@@ -26,7 +26,7 @@ export function initDatabase() {
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   runMigrations();
-  console.log('\u2705 Database initialized at', DB_PATH);
+  console.log('✅ Database initialized at', DB_PATH);
   return db;
 }
 
@@ -116,9 +116,7 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_history_room ON song_history(room_id);
     CREATE INDEX IF NOT EXISTS idx_history_played ON song_history(room_id, played_at DESC);
   `);
-  try {
-    db.exec(`ALTER TABLE rooms ADD COLUMN song_limit INTEGER DEFAULT 0`);
-  } catch (e) {}
+  try { db.exec(`ALTER TABLE rooms ADD COLUMN song_limit INTEGER DEFAULT 0`); } catch (e) { }
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,

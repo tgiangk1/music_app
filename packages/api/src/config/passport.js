@@ -16,41 +16,21 @@ passport.use(new GoogleStrategy(
             const googleId = profile.id;
             const displayName = profile.displayName || email;
             const avatar = profile.photos?.[0]?.value || null;
-
-            // Check if user exists
             let user = db.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId);
-
             if (user) {
-                // Update last seen
-                db.prepare("UPDATE users SET last_seen_at = datetime('now'), display_name = ?, avatar = ? WHERE id = ?")
-                    .run(displayName, avatar, user.id);
+                db.prepare("UPDATE users SET last_seen_at = datetime('now'), display_name = ?, avatar = ? WHERE id = ?").run(displayName, avatar, user.id);
                 user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
             } else {
-                // Create new user
                 const id = uuidv4();
                 const isFirstAdmin = email === process.env.FIRST_ADMIN_EMAIL;
                 const role = isFirstAdmin ? 'admin' : 'member';
-
-                db.prepare(`
-          INSERT INTO users (id, google_id, email, display_name, avatar, role, last_seen_at)
-          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-        `).run(id, googleId, email, displayName, avatar, role);
-
+                db.prepare(`INSERT INTO users (id, google_id, email, display_name, avatar, role, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`).run(id, googleId, email, displayName, avatar, role);
                 user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
                 console.log(`👤 New user created: ${displayName} (${email}) — role: ${role}`);
             }
-
             return done(null, user);
-        } catch (err) {
-            return done(err);
-        }
+        } catch (err) { return done(err); }
     }
 ));
-
-// Serialize/deserialize (not used with JWT, but needed for passport)
 passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser((id, done) => {
-    const db = getDb();
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    done(null, user);
-});
+passport.deserializeUser((id, done) => { const db = getDb(); const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id); done(null, user); });
