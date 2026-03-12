@@ -46,6 +46,7 @@ jobs:
           echo "### 🌐 Frontend Production: $URL" >> "$GITHUB_STEP_SUMMARY"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   # ============================================================================
   # Job 2: Deploy Backend to Render (Production)

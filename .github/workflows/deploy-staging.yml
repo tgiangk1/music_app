@@ -22,7 +22,6 @@ env:
 jobs:
   # ============================================================================
   # Job 1: Deploy Frontend to Vercel (Preview)
-  # Let Vercel handle the build — env vars set in Vercel Dashboard
   # ============================================================================
   deploy-frontend:
     name: 🚀 Deploy FE → Vercel Preview
@@ -48,6 +47,7 @@ jobs:
           echo "### 🌐 Frontend Preview: $URL" >> "$GITHUB_STEP_SUMMARY"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   # ============================================================================
   # Job 2: Deploy Backend to Render (Staging)
