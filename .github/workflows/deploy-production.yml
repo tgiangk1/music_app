@@ -58,7 +58,7 @@ jobs:
       - name: Deploy to Render Production
         run: |
           if [ -z "$RENDER_SERVICE_ID" ]; then
-            echo "### ⏭️ Render Production skipped — RENDER_PROD_SERVICE_ID not set" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ⏭️ Render deploy skipped — RENDER_BACKEND_SERVICE_ID not set" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -75,7 +75,7 @@ jobs:
             exit 1
           fi
         env:
-          RENDER_SERVICE_ID: ${{ secrets.RENDER_PROD_SERVICE_ID }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_BACKEND_SERVICE_ID }}
 
   # ============================================================================
   # Job 3: Create GitHub Release
