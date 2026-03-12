@@ -41,3 +41,40 @@ export function verifyToken(req, res, next) {
         return res.status(401).json({ error: 'Invalid token' });
     }
 }
+
+/**
+ * Optional authentication — sets req.user if token present, null otherwise.
+ * Use for routes that should work for both authenticated users and guests.
+ */
+export function optionalAuth(req, res, next) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        req.user = null;
+        return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const db = getDb();
+        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.userId);
+
+        if (user && !user.is_banned) {
+            req.user = {
+                userId: user.id,
+                email: user.email,
+                role: user.role,
+                displayName: user.display_name,
+                avatar: user.avatar,
+            };
+        } else {
+            req.user = null;
+        }
+    } catch {
+        req.user = null;
+    }
+
+    next();
+}

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../config/database.js';
-import { verifyToken } from '../middlewares/auth.js';
+import { verifyToken, optionalAuth } from '../middlewares/auth.js';
 import { requireRoomOwnerOrAdmin } from '../middlewares/role.js';
 
 const router = Router();
@@ -22,7 +22,7 @@ function getPlayerState(slug) {
 }
 
 // GET /api/rooms/:slug/player — current player state
-router.get('/:slug/player', verifyToken, (req, res) => {
+router.get('/:slug/player', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
     if (!room) {

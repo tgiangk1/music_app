@@ -112,9 +112,7 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
   `);
 
-  // ── Phase 2 Migrations ──
-
-  // Feature 3: Queue History table
+  // Queue History table
   db.exec(`
     CREATE TABLE IF NOT EXISTS song_history (
       id TEXT PRIMARY KEY,
@@ -133,16 +131,14 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_history_played ON song_history(room_id, played_at DESC);
   `);
 
-  // Feature 8: Song limit per user per room
+  // Song limit per user per room
   try {
     db.exec(`ALTER TABLE rooms ADD COLUMN song_limit INTEGER DEFAULT 0`);
   } catch (e) {
     // Column already exists — ignore
   }
 
-  // ── Phase 3 Migrations ──
-
-  // Feature 2: Chat messages
+  // Chat messages
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
@@ -157,7 +153,7 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_chat_room ON chat_messages(room_id, created_at DESC);
   `);
 
-  // Feature 6: Activity log
+  // Activity log
   db.exec(`
     CREATE TABLE IF NOT EXISTS activity_log (
       id TEXT PRIMARY KEY,
@@ -169,77 +165,5 @@ function runMigrations() {
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_activity_room ON activity_log(room_id, created_at DESC);
-  `);
-
-  // ── Phase 4 Migrations ──
-
-  // Feature 1: Saved Playlists
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS playlists (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists(user_id);
-
-    CREATE TABLE IF NOT EXISTS playlist_songs (
-      playlist_id TEXT NOT NULL,
-      youtube_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      thumbnail TEXT,
-      duration INTEGER,
-      channel_name TEXT,
-      order_index INTEGER DEFAULT 0,
-      added_at TEXT DEFAULT (datetime('now')),
-      PRIMARY KEY (playlist_id, youtube_id),
-      FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_playlist_songs ON playlist_songs(playlist_id, order_index);
-  `);
-
-  // Feature 2: Room Schedule
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS room_schedules (
-      id TEXT PRIMARY KEY,
-      room_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      scheduled_at TEXT NOT NULL,
-      notify_members INTEGER DEFAULT 1,
-      is_executed INTEGER DEFAULT 0,
-      created_by TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_room_schedules_time ON room_schedules(scheduled_at);
-  `);
-
-  // Feature 3: Block List
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS room_blocklist (
-      id TEXT PRIMARY KEY,
-      room_id TEXT NOT NULL,
-      type TEXT NOT NULL, -- 'channel' or 'video'
-      value TEXT NOT NULL,
-      added_by TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-      FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_room_blocklist ON room_blocklist(room_id, type);
-  `);
-
-  // Feature 5: Slack Webhook
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS room_webhooks (
-      room_id TEXT PRIMARY KEY,
-      slack_url TEXT NOT NULL,
-      updated_at TEXT DEFAULT (datetime('now')),
-      updated_by TEXT NOT NULL,
-      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE CASCADE
-    );
   `);
 }

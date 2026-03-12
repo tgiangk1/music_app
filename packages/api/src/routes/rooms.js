@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../config/database.js';
-import { verifyToken } from '../middlewares/auth.js';
+import { verifyToken, optionalAuth } from '../middlewares/auth.js';
 import { requireAdmin, requireRoomOwnerOrAdmin } from '../middlewares/role.js';
 import { playerStates } from './player.js';
 
@@ -69,7 +69,7 @@ router.post('/', verifyToken, (req, res) => {
 });
 
 // GET /api/rooms/:slug — room detail
-router.get('/:slug', verifyToken, (req, res) => {
+router.get('/:slug', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare(`
     SELECT r.*, u.display_name as creator_name
@@ -84,6 +84,9 @@ router.get('/:slug', verifyToken, (req, res) => {
 
     // Check access for private rooms
     if (!room.is_public) {
+        if (!req.user) {
+            return res.status(403).json({ error: 'Login required to access private rooms' });
+        }
         const isMember = db.prepare('SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?').get(room.id, req.user.userId);
         const isCreator = room.created_by === req.user.userId;
         const isAdmin = req.user.role === 'admin';
@@ -97,7 +100,7 @@ router.get('/:slug', verifyToken, (req, res) => {
     const memberCount = db.prepare('SELECT COUNT(*) as count FROM room_members WHERE room_id = ?').get(room.id).count;
 
     // Tell the client if this user is the room owner
-    const isOwner = room.created_by === req.user.userId;
+    const isOwner = req.user ? room.created_by === req.user.userId : false;
 
     res.json({ room: { ...room, memberCount, isOwner } });
 });
@@ -154,7 +157,7 @@ router.delete('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
 });
 
 // GET /api/rooms/:slug/members — list room members
-router.get('/:slug/members', verifyToken, (req, res) => {
+router.get('/:slug/members', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
 
