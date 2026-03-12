@@ -8,7 +8,6 @@ import { logActivity } from '../services/socket.js';
 
 const router = Router();
 
-// Helper: get queue for a room sorted by position
 function getQueueForRoom(roomId) {
     const db = getDb();
     return db.prepare(`
@@ -20,7 +19,6 @@ function getQueueForRoom(roomId) {
   `).all(roomId);
 }
 
-// Helper: emit queue update via socket
 function emitQueueUpdate(req, roomSlug, roomId) {
     const io = req.app.get('io');
     const roomNsp = io.of(`/room/${roomSlug}`);
@@ -28,7 +26,6 @@ function emitQueueUpdate(req, roomSlug, roomId) {
     roomNsp.emit('queue:updated', queue);
 }
 
-// Helper: save song to history
 function saveToHistory(db, song) {
     const id = uuidv4();
     db.prepare(`
@@ -37,237 +34,122 @@ function saveToHistory(db, song) {
   `).run(id, song.room_id, song.youtube_id, song.title, song.thumbnail, song.duration, song.channel_name, song.added_by);
 }
 
-// GET /api/rooms/:slug/songs — get queue
 router.get('/:slug/songs', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
-    if (!room) {
-        return res.status(404).json({ error: 'Room not found' });
-    }
-
-    const songs = getQueueForRoom(room.id);
-    res.json({ songs });
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+    res.json({ songs: getQueueForRoom(room.id) });
 });
 
-// POST /api/rooms/:slug/songs — add song
 router.post('/:slug/songs', verifyToken, async (req, res) => {
     try {
         const { url, videoId: directVideoId, title: directTitle, force } = req.body;
         const db = getDb();
         const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
-        if (!room) {
-            return res.status(404).json({ error: 'Room not found' });
-        }
+        if (!room) return res.status(404).json({ error: 'Room not found' });
 
-        // Check song limit per user
         if (room.song_limit > 0) {
-            const userSongCount = db.prepare(
-                'SELECT COUNT(*) as count FROM songs WHERE room_id = ? AND added_by = ?'
-            ).get(room.id, req.user.userId).count;
-
+            const userSongCount = db.prepare('SELECT COUNT(*) as count FROM songs WHERE room_id = ? AND added_by = ?').get(room.id, req.user.userId).count;
             if (userSongCount >= room.song_limit) {
-                return res.status(429).json({
-                    error: `You can only have ${room.song_limit} songs in the queue at once`,
-                    code: 'SONG_LIMIT_REACHED',
-                });
+                return res.status(429).json({ error: `You can only have ${room.song_limit} songs in the queue at once`, code: 'SONG_LIMIT_REACHED' });
             }
         }
 
         let metadata;
-
-        // Support direct videoId (from search results) or URL
         if (directVideoId) {
-            metadata = {
-                videoId: directVideoId,
-                title: directTitle || `YouTube Video (${directVideoId})`,
-                thumbnail: `https://img.youtube.com/vi/${directVideoId}/hqdefault.jpg`,
-                duration: 0,
-                channelName: 'Unknown',
-            };
-            // Try to fetch full metadata in background
+            metadata = { videoId: directVideoId, title: directTitle || `YouTube Video (${directVideoId})`, thumbnail: `https://img.youtube.com/vi/${directVideoId}/hqdefault.jpg`, duration: 0, channelName: 'Unknown' };
             fetchVideoMetadata(directVideoId).then(full => {
                 if (full && full.title !== metadata.title) {
-                    db.prepare('UPDATE songs SET title = ?, thumbnail = ?, duration = ?, channel_name = ? WHERE youtube_id = ? AND room_id = ?')
-                        .run(full.title, full.thumbnail, full.duration, full.channelName, directVideoId, room.id);
+                    db.prepare('UPDATE songs SET title = ?, thumbnail = ?, duration = ?, channel_name = ? WHERE youtube_id = ? AND room_id = ?').run(full.title, full.thumbnail, full.duration, full.channelName, directVideoId, room.id);
                     emitQueueUpdate(req, req.params.slug, room.id);
                 }
             }).catch(() => { });
         } else if (url) {
             metadata = await fetchVideoMetadata(url);
-            if (!metadata) {
-                return res.status(400).json({ error: 'Invalid YouTube URL or video not found' });
-            }
+            if (!metadata) return res.status(400).json({ error: 'Invalid YouTube URL or video not found' });
         } else {
             return res.status(400).json({ error: 'YouTube URL or videoId is required' });
         }
 
-        // Check if song already in queue
         const existing = db.prepare('SELECT id FROM songs WHERE room_id = ? AND youtube_id = ?').get(room.id, metadata.videoId);
-        if (existing && !force) {
-            return res.status(409).json({
-                error: 'This song is already in the queue',
-                code: 'DUPLICATE_IN_QUEUE',
-                existingSongId: existing.id,
-            });
-        }
-        if (existing && force) {
-            return res.status(200).json({ message: 'Song already in queue', existing: true });
-        }
+        if (existing && !force) return res.status(409).json({ error: 'This song is already in the queue', code: 'DUPLICATE_IN_QUEUE', existingSongId: existing.id });
+        if (existing && force) return res.status(200).json({ message: 'Song already in queue', existing: true });
 
-        // Check if song was recently played (in history)
-        const inHistory = db.prepare(
-            'SELECT id FROM song_history WHERE room_id = ? AND youtube_id = ? ORDER BY played_at DESC LIMIT 1'
-        ).get(room.id, metadata.videoId);
-
-        // Get max position
+        const inHistory = db.prepare('SELECT id FROM song_history WHERE room_id = ? AND youtube_id = ? ORDER BY played_at DESC LIMIT 1').get(room.id, metadata.videoId);
         const maxPos = db.prepare('SELECT MAX(position) as pos FROM songs WHERE room_id = ?').get(room.id);
         const position = (maxPos?.pos || 0) + 1;
 
         const id = uuidv4();
-        db.prepare(`
-      INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, room.id, metadata.videoId, metadata.title, metadata.thumbnail, metadata.duration, metadata.channelName, req.user.userId, position);
+        db.prepare(`INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, room.id, metadata.videoId, metadata.title, metadata.thumbnail, metadata.duration, metadata.channelName, req.user.userId, position);
 
-        // If this is the first/only song, mark it as playing
         const songCount = db.prepare('SELECT COUNT(*) as count FROM songs WHERE room_id = ?').get(room.id).count;
         if (songCount === 1) {
             db.prepare('UPDATE songs SET is_playing = 1 WHERE id = ?').run(id);
-
             const { playerStates } = await import('./player.js');
-            const stateObj = {
-                videoId: metadata.videoId,
-                state: 'playing',
-                currentTime: 0,
-                updatedAt: new Date().toISOString(),
-                updatedBy: req.user.userId,
-            };
+            const stateObj = { videoId: metadata.videoId, state: 'playing', currentTime: 0, updatedAt: new Date().toISOString(), updatedBy: req.user.userId };
             playerStates.set(req.params.slug, stateObj);
             const io = req.app.get('io');
             io.of(`/room/${req.params.slug}`).emit('player:sync', stateObj);
         }
 
         emitQueueUpdate(req, req.params.slug, room.id);
-
-        // Broadcast notification for browser notifications
         const io = req.app.get('io');
-        io.of(`/room/${req.params.slug}`).emit('song:added', {
-            title: metadata.title,
-            addedBy: req.user.displayName,
-            thumbnail: metadata.thumbnail,
-        });
-
-        // Log activity
+        io.of(`/room/${req.params.slug}`).emit('song:added', { title: metadata.title, addedBy: req.user.displayName, thumbnail: metadata.thumbnail });
         logActivity(db, room.id, req.user.userId, 'song_add', { songTitle: metadata.title });
 
         const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(id);
-        res.status(201).json({
-            song,
-            wasInHistory: !!inHistory,
-        });
+        res.status(201).json({ song, wasInHistory: !!inHistory });
     } catch (err) {
         console.error('Error adding song:', err);
         res.status(500).json({ error: 'Failed to add song' });
     }
 });
 
-// GET /api/rooms/:slug/history — Queue history
 router.get('/:slug/history', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
-    if (!room) {
-        return res.status(404).json({ error: 'Room not found' });
-    }
-
+    if (!room) return res.status(404).json({ error: 'Room not found' });
     const limit = Math.min(parseInt(req.query.limit) || 50, 100);
     const offset = parseInt(req.query.offset) || 0;
-
-    const history = db.prepare(`
-    SELECT h.*, u.display_name as added_by_name, u.avatar as added_by_avatar
-    FROM song_history h
-    JOIN users u ON h.added_by = u.id
-    WHERE h.room_id = ?
-    ORDER BY h.played_at DESC
-    LIMIT ? OFFSET ?
-  `).all(room.id, limit, offset);
-
+    const history = db.prepare(`SELECT h.*, u.display_name as added_by_name, u.avatar as added_by_avatar FROM song_history h JOIN users u ON h.added_by = u.id WHERE h.room_id = ? ORDER BY h.played_at DESC LIMIT ? OFFSET ?`).all(room.id, limit, offset);
     const total = db.prepare('SELECT COUNT(*) as count FROM song_history WHERE room_id = ?').get(room.id).count;
-
     res.json({ history, total, limit, offset });
 });
 
-// DELETE /api/rooms/:slug/songs/:id — remove song
 router.delete('/:slug/songs/:id', verifyToken, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
-    if (!room) {
-        return res.status(404).json({ error: 'Room not found' });
-    }
-
+    if (!room) return res.status(404).json({ error: 'Room not found' });
     const song = db.prepare('SELECT * FROM songs WHERE id = ? AND room_id = ?').get(req.params.id, room.id);
-    if (!song) {
-        return res.status(404).json({ error: 'Song not found' });
-    }
-
-    // Member can only delete their own songs; room owner or admin can delete any
+    if (!song) return res.status(404).json({ error: 'Song not found' });
     const isOwner = room.created_by === req.user.userId;
     const isAdmin = req.user.role === 'admin';
-    if (!isOwner && !isAdmin && song.added_by !== req.user.userId) {
-        return res.status(403).json({ error: 'You can only remove your own songs' });
-    }
-
-    // Save to history before deleting (only if it was playing)
-    if (song.is_playing) {
-        saveToHistory(db, song);
-    }
-
+    if (!isOwner && !isAdmin && song.added_by !== req.user.userId) return res.status(403).json({ error: 'You can only remove your own songs' });
+    if (song.is_playing) saveToHistory(db, song);
     db.prepare('DELETE FROM songs WHERE id = ?').run(song.id);
-
     emitQueueUpdate(req, req.params.slug, room.id);
     res.json({ message: 'Song removed' });
 });
 
-// PUT /api/rooms/:slug/songs/reorder — reorder queue [Any member]
 router.put('/:slug/songs/reorder', verifyToken, (req, res) => {
     const { orderedIds } = req.body;
-    if (!Array.isArray(orderedIds)) {
-        return res.status(400).json({ error: 'orderedIds must be an array' });
-    }
-
+    if (!Array.isArray(orderedIds)) return res.status(400).json({ error: 'orderedIds must be an array' });
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
-    if (!room) {
-        return res.status(404).json({ error: 'Room not found' });
-    }
-
-    const reorder = db.transaction(() => {
-        orderedIds.forEach((id, index) => {
-            db.prepare('UPDATE songs SET position = ? WHERE id = ? AND room_id = ?').run(index, id, room.id);
-        });
-    });
-
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+    const reorder = db.transaction(() => { orderedIds.forEach((id, index) => { db.prepare('UPDATE songs SET position = ? WHERE id = ? AND room_id = ?').run(index, id, room.id); }); });
     reorder();
     emitQueueUpdate(req, req.params.slug, room.id);
-
     res.json({ message: 'Queue reordered' });
 });
 
-// DELETE /api/rooms/:slug/songs — clear queue [Owner or Admin]
 router.delete('/:slug/songs', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     const db = getDb();
     const room = req.room || db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
-    if (!room) {
-        return res.status(404).json({ error: 'Room not found' });
-    }
-
-    // Save all playing songs to history before clearing
+    if (!room) return res.status(404).json({ error: 'Room not found' });
     const playingSong = db.prepare('SELECT * FROM songs WHERE room_id = ? AND is_playing = 1').get(room.id);
-    if (playingSong) {
-        saveToHistory(db, playingSong);
-    }
-
+    if (playingSong) saveToHistory(db, playingSong);
     db.prepare('DELETE FROM songs WHERE room_id = ?').run(room.id);
-
     emitQueueUpdate(req, req.params.slug, room.id);
     res.json({ message: 'Queue cleared' });
 });
