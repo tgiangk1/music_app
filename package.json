@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "concurrently -n api,fe -c cyan,magenta \"npm run dev -w packages/api\" \"npm run dev -w packages/fe\"",
     "dev:api": "npm run dev -w packages/api",
-    "dev:fe": "npm run dev -w packages/fe"
+    "dev:fe": "npm run dev -w packages/fe",
+    "build": "npm run build -w packages/fe && npm run build -w packages/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
