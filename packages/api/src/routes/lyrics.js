@@ -9,7 +9,6 @@ router.get('/', verifyToken, async (req, res) => {
     if (!query) return res.status(400).json({ error: 'Missing query parameter q' });
 
     try {
-        // Step 1: Search Genius for the song
         const searchUrl = `https://genius.com/api/search/song?q=${encodeURIComponent(query)}&per_page=5`;
         const searchRes = await fetch(searchUrl, {
             headers: {
@@ -29,13 +28,11 @@ router.get('/', verifyToken, async (req, res) => {
             return res.json({ lyrics: null, error: 'No results found' });
         }
 
-        // Pick the first result 
         const songPath = hits[0]?.result?.path;
         if (!songPath) {
             return res.json({ lyrics: null, error: 'No song path found' });
         }
 
-        // Step 2: Fetch the Genius page and extract lyrics
         const pageUrl = `https://genius.com${songPath}`;
         const pageRes = await fetch(pageUrl, {
             headers: {
@@ -50,8 +47,6 @@ router.get('/', verifyToken, async (req, res) => {
 
         const html = await pageRes.text();
 
-        // Extract lyrics from Genius HTML
-        // Genius stores lyrics in <div data-lyrics-container="true"> elements
         const lyricsContainers = [];
         const regex = /data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/g;
         let match;
@@ -63,18 +58,17 @@ router.get('/', verifyToken, async (req, res) => {
             return res.json({ lyrics: null, error: 'Could not parse lyrics' });
         }
 
-        // Clean HTML tags from lyrics
         let lyrics = lyricsContainers.join('\n');
         lyrics = lyrics
-            .replace(/<br\s*\/?>/gi, '\n')           // <br> → newline
-            .replace(/<[^>]+>/g, '')                  // strip all HTML tags
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .replace(/&quot;/g, '"')
             .replace(/&#x27;/g, "'")
             .replace(/&#39;/g, "'")
-            .replace(/\n{3,}/g, '\n\n')              // collapse multiple newlines
+            .replace(/\n{3,}/g, '\n\n')
             .trim();
 
         const songInfo = {

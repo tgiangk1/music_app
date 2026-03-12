@@ -1,24 +1,13 @@
-/**
- * YouTube metadata service
- * Extracts video info from YouTube URLs using youtube-search-api
- * PERF-3: In-memory cache with 24h TTL
- * Phase 2: Search + Playlist support
- */
-
-// ── PERF-3: Metadata cache ──
-const metadataCache = new Map(); // videoId -> { data, ts }
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const metadataCache = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000;
 const MAX_CACHE_SIZE = 500;
 
-/**
- * Extract YouTube video ID from various URL formats
- */
 export function extractVideoId(url) {
     if (!url) return null;
 
     const patterns = [
         /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
-        /^([a-zA-Z0-9_-]{11})$/, // Direct ID
+        /^([a-zA-Z0-9_-]{11})$/,
     ];
 
     for (const pattern of patterns) {
@@ -29,14 +18,10 @@ export function extractVideoId(url) {
     return null;
 }
 
-/**
- * Fetch video metadata from YouTube (with cache)
- */
 export async function fetchVideoMetadata(url) {
     const videoId = extractVideoId(url);
     if (!videoId) return null;
 
-    // Check cache first
     const cached = metadataCache.get(videoId);
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
         return cached.data;
@@ -44,10 +29,8 @@ export async function fetchVideoMetadata(url) {
 
     const data = await _fetchFromYoutube(videoId);
 
-    // Store in cache
     metadataCache.set(videoId, { data, ts: Date.now() });
 
-    // Evict oldest entries if cache is full
     if (metadataCache.size > MAX_CACHE_SIZE) {
         const oldest = metadataCache.keys().next().value;
         metadataCache.delete(oldest);
@@ -56,9 +39,6 @@ export async function fetchVideoMetadata(url) {
     return data;
 }
 
-/**
- * Internal: fetch from YouTube scraper
- */
 async function _fetchFromYoutube(videoId) {
     try {
         const ytSearch = await import('youtube-search-api');
@@ -96,13 +76,6 @@ function _fallbackMetadata(videoId) {
     };
 }
 
-// ═══════════════════════════════════════════════════
-// Phase 2 — Feature 1: YouTube Search
-// ═══════════════════════════════════════════════════
-
-/**
- * Search YouTube videos by query
- */
 export async function searchYouTube(query, limit = 10) {
     if (!query || !query.trim()) return [];
 
@@ -128,22 +101,12 @@ export async function searchYouTube(query, limit = 10) {
     }
 }
 
-// ═══════════════════════════════════════════════════
-// Phase 2 — Feature 2: Playlist Import
-// ═══════════════════════════════════════════════════
-
-/**
- * Extract playlist ID from YouTube playlist URL
- */
 export function extractPlaylistId(url) {
     if (!url) return null;
     const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
     return match ? match[1] : null;
 }
 
-/**
- * Fetch all videos from a YouTube playlist
- */
 export async function fetchPlaylistVideos(playlistUrl) {
     const playlistId = extractPlaylistId(playlistUrl);
     if (!playlistId) return null;
