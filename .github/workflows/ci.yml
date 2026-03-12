@@ -26,7 +26,7 @@ jobs:
   # Job 1: Lint — ESLint check for both packages
   # ============================================================================
   lint:
-    name: "\U0001F50D Lint"
+    name: 🔍 Lint
     runs-on: ubuntu-latest
     steps:
       # Checkout source code
@@ -40,7 +40,7 @@ jobs:
 
       # Install all workspace dependencies
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # Run ESLint on frontend package
       - name: Lint frontend
@@ -54,7 +54,7 @@ jobs:
   # Job 2: Test — Jest unit tests for both packages
   # ============================================================================
   test:
-    name: "\U0001F9EA Test"
+    name: 🧪 Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +65,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # Run tests on frontend (skip if no test script)
       - name: Test frontend
@@ -79,7 +79,7 @@ jobs:
   # Job 3: Build — Verify production build succeeds
   # ============================================================================
   build:
-    name: "\U0001F3D7\uFE0F Build"
+    name: 🏗️ Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +90,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # Build frontend (Vite production build)
       - name: Build frontend
