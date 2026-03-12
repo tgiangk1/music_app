@@ -1,17 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import SavedPlaylists from './SavedPlaylists';
 
 export default function SearchAddSong({ onAdd, slug, songs = [] }) {
-    const [mode, setMode] = useState('search'); // 'search' | 'url' | 'playlist' | 'saved'
+    const [mode, setMode] = useState('search'); // 'search' | 'url'
     const [query, setQuery] = useState('');
     const [url, setUrl] = useState('');
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isAdding, setIsAdding] = useState(null); // videoId being added
-    const [isImporting, setIsImporting] = useState(false);
-    const [importProgress, setImportProgress] = useState(null);
     const debounceRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -78,34 +75,9 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
         }
     };
 
-    // Import playlist
-    const handlePlaylistImport = async (e) => {
-        e.preventDefault();
-        if (!url.trim() || isImporting) return;
-        setIsImporting(true);
-        setImportProgress(null);
-        try {
-            const res = await api.post(`/api/rooms/${slug}/songs/import-playlist`, { url: url.trim() });
-            const { added, skipped, total } = res.data;
-            setImportProgress({ added, skipped, total });
-            toast.success(`Imported ${added} songs!`);
-            setUrl('');
-        } catch (err) {
-            const msg = err.response?.data?.error || 'Failed to import playlist';
-            toast.error(msg);
-        } finally {
-            setIsImporting(false);
-        }
-    };
-
     const handlePaste = (e) => {
         const text = e.clipboardData?.getData('text') || '';
-        // Auto-detect playlist URL
-        if (text.includes('list=')) {
-            setMode('playlist');
-            setUrl(text);
-            e.preventDefault();
-        } else if (text.includes('youtube.com') || text.includes('youtu.be')) {
+        if (text.includes('youtube.com') || text.includes('youtu.be')) {
             setMode('url');
             setUrl(text);
             e.preventDefault();
@@ -119,12 +91,10 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                 {[
                     { key: 'search', icon: '🔍', label: 'Search' },
                     { key: 'url', icon: '🔗', label: 'URL' },
-                    { key: 'playlist', icon: '📋', label: 'Playlist' },
-                    { key: 'saved', icon: '💾', label: 'Saved' },
                 ].map(tab => (
                     <button
                         key={tab.key}
-                        onClick={() => { setMode(tab.key); setResults([]); setImportProgress(null); }}
+                        onClick={() => { setMode(tab.key); setResults([]); }}
                         className={`flex-1 text-xs sm:text-sm py-2 px-3 rounded-lg transition-all font-medium
               ${mode === tab.key
                                 ? 'bg-card text-text-primary shadow-sm'
@@ -231,50 +201,6 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                         {isAdding === 'url' ? 'Adding...' : 'Add'}
                     </button>
                 </form>
-            )}
-
-            {/* Playlist mode */}
-            {mode === 'playlist' && (
-                <div>
-                    <form onSubmit={handlePlaylistImport} className="flex gap-2">
-                        <input
-                            type="text"
-                            value={url}
-                            onChange={(e) => setUrl(e.target.value)}
-                            className="input-field flex-1"
-                            placeholder="Paste YouTube Playlist URL..."
-                            disabled={isImporting}
-                        />
-                        <button
-                            type="submit"
-                            disabled={isImporting || !url.trim()}
-                            className="btn-primary whitespace-nowrap disabled:opacity-50"
-                        >
-                            {isImporting ? (
-                                <span className="flex items-center gap-2">
-                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Importing...
-                                </span>
-                            ) : 'Import'}
-                        </button>
-                    </form>
-
-                    {importProgress && (
-                        <div className="mt-3 p-3 rounded-xl bg-success/10 text-success text-sm animate-fade-in">
-                            ✅ {importProgress.added} songs added · {importProgress.skipped} duplicates skipped · {importProgress.total} total in playlist
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Saved Mode */}
-            {mode === 'saved' && (
-                <div className="pt-2">
-                    <SavedPlaylists slug={slug} />
-                </div>
             )}
         </div>
     );

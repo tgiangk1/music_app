@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -13,32 +13,37 @@ import QueueHistory from '../components/Queue/QueueHistory';
 import AddSong from '../components/AddSong/AddSong';
 import MembersList from '../components/Members/MembersList';
 import ShortcutsHelp from '../components/ShortcutsHelp';
-// Phase 3: Social components
+// Social components
 import EmojiReactions from '../components/Social/EmojiReactions';
 import ChatBox from '../components/Social/ChatBox';
 import ListeningAvatars from '../components/Social/ListeningAvatars';
-import PersonalStats from '../components/Social/PersonalStats';
-import Leaderboard from '../components/Social/Leaderboard';
 import ActivityFeed from '../components/Social/ActivityFeed';
-// Phase 4: Room Schedule
-import RoomSchedule from '../components/Room/RoomSchedule';
-import RoomBlocklist from '../components/Room/RoomBlocklist';
-import SlackWebhookConfig from '../components/Room/SlackWebhookConfig';
+import LyricsPanel from '../components/Social/LyricsPanel';
+import RoomStats from '../components/Social/RoomStats';
+import { useTheme } from '../components/ThemeProvider';
+import { generateQRCode } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
 export default function Room() {
     const { slug } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const { user, isLoading: authLoading } = useAuthStore();
     const playerState = usePlayerStore();
     const [room, setRoom] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [showMembers, setShowMembers] = useState(false);
     const [queueTab, setQueueTab] = useState('queue'); // 'queue' | 'history'
     const [showMiniPlayer, setShowMiniPlayer] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [repeatMode, setRepeatMode] = useState(() => localStorage.getItem('jukebox_repeat') || 'off'); // 'off' | 'single' | 'queue'
     const playerSectionRef = useRef(null);
+    const qrCanvasRef = useRef(null);
+    const profileMenuRef = useRef(null);
+    const { theme, toggleTheme } = useTheme();
 
+    const isGuest = !user && !authLoading;
     const isAdmin = user?.role === 'admin';
 
     const {
@@ -59,12 +64,12 @@ export default function Room() {
         reorderQueue,
     } = useQueue(slug);
 
-    // Feature 5: Browser notifications
+    // Browser notifications (only for logged-in users)
     const { requestPermission, notify } = useNotifications();
 
     useEffect(() => {
-        requestPermission();
-    }, [requestPermission]);
+        if (!isGuest) requestPermission();
+    }, [requestPermission, isGuest]);
 
     // Fetch room details
     useEffect(() => {
@@ -77,7 +82,7 @@ export default function Room() {
             .catch(err => {
                 if (err.response?.status === 403) toast.error('You do not have access to this room');
                 else if (err.response?.status === 404) toast.error('Room not found');
-                navigate('/');
+                navigate(isGuest ? '/login' : '/');
             });
     }, [slug, navigate]);
 
@@ -91,7 +96,7 @@ export default function Room() {
             .catch(() => { });
     }, [slug]);
 
-    // Feature 4: Mini Player — Intersection Observer
+    // Mini Player — Intersection Observer
     useEffect(() => {
         const el = playerSectionRef.current;
         if (!el) return;
@@ -105,7 +110,7 @@ export default function Room() {
 
     const isRoomOwner = room?.isOwner || room?.created_by === user?.id || isAdmin;
 
-    // Feature 6: Keyboard shortcuts
+    // Keyboard shortcuts
     const { showHelp, setShowHelp } = useKeyboardShortcuts({
         isRoomOwner,
         emitPlayerSync,
@@ -117,7 +122,25 @@ export default function Room() {
     const currentSong = songs.find(s => s.is_playing);
     const queue = songs.filter(s => !s.is_playing);
 
-    // Feature 5: Show notification when new song is added
+    // Repeat mode toggle
+    const cycleRepeatMode = () => {
+        const next = repeatMode === 'off' ? 'single' : repeatMode === 'single' ? 'queue' : 'off';
+        setRepeatMode(next);
+        localStorage.setItem('jukebox_repeat', next);
+    };
+
+    // Shuffle queue (Fisher-Yates)
+    const shuffleQueue = () => {
+        if (queue.length < 2) return;
+        const ids = queue.map(s => s.id);
+        for (let i = ids.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [ids[i], ids[j]] = [ids[j], ids[i]];
+        }
+        reorderQueue(ids);
+    };
+
+    // Show notification when new song is added
     const prevQueueLenRef = useRef(songs.length);
     useEffect(() => {
         if (songs.length > prevQueueLenRef.current) {
@@ -127,52 +150,53 @@ export default function Room() {
                     body: `Added by ${newest.added_by_name || 'Someone'}`,
                     tag: `song-${newest.id}`,
                 });
+                playNotificationSound();
             }
         }
         prevQueueLenRef.current = songs.length;
     }, [songs, notify, user?.id]);
 
-    // Feature 2: Schedule event notification listening
+    // Sound notification — Web Audio "ding" when someone else adds a song
+    const playNotificationSound = () => {
+        if (!document.hidden) return; // only when tab is inactive
+        if (localStorage.getItem('jukebox_sound_notification') === 'off') return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+        } catch { }
+    };
+
+    // Now Playing — dynamic tab title
     useEffect(() => {
-        if (!socket) return;
-        const onScheduleTriggered = (data) => {
-            if (data.shouldNotify) {
-                toast.custom((t) => (
-                    <div
-                        className={`glass-card p-4 border-primary/30 max-w-sm w-full shadow-glow-lg flex gap-3 cursor-pointer ${t.visible ? 'animate-fade-in' : 'animate-slide-up opacity-0'
-                            }`}
-                        onClick={() => {
-                            toast.dismiss(t.id);
-                        }}
-                    >
-                        <div className="flex-shrink-0 text-3xl">🔔</div>
-                        <div className="flex-1 min-w-0">
-                            <h4 className="text-text-primary font-bold text-sm">Event Started!</h4>
-                            <p className="text-text-secondary text-sm truncate">{data.title}</p>
-                            <p className="text-primary text-xs font-semibold mt-1 flex items-center gap-1">
-                                Join now
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                                </svg>
-                            </p>
-                        </div>
-                    </div>
-                ), { duration: 10000, position: 'top-right' });
+        if (currentSong?.title) {
+            document.title = `🎵 ${currentSong.title} — ${room?.name || 'Jukebox'}`;
+        } else {
+            document.title = room?.name ? `${room.name} — Antigravity Jukebox` : 'Antigravity Jukebox';
+        }
+        return () => { document.title = 'Antigravity Jukebox'; };
+    }, [currentSong?.title, room?.name]);
 
-                if (Notification.permission === 'granted') {
-                    new Notification(`Event Started!`, {
-                        body: data.title,
-                        icon: '/favicon.ico'
-                    });
-                }
-            } else {
-                toast(`Scheduled task executed: ${data.title}`);
-            }
-        };
-
-        socket.on('room:schedule_triggered', onScheduleTriggered);
-        return () => socket.off('room:schedule_triggered', onScheduleTriggered);
-    }, [socket]);
+    // Share Room Link
+    const handleShareRoom = async () => {
+        const roomUrl = `${window.location.origin}/room/${slug}`;
+        try {
+            await navigator.clipboard.writeText(roomUrl);
+            toast.success('Room link copied to clipboard!');
+        } catch {
+            // Fallback for older browsers
+            setShowShareModal(true);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -190,25 +214,25 @@ export default function Room() {
             {/* Room Header */}
             <header className="border-b border-border/50 bg-surface/50 backdrop-blur-xl sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Link to="/" className="p-2 hover:bg-card rounded-lg transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <Link to="/" className="p-2 hover:bg-card rounded-lg transition-colors flex-shrink-0">
                             <svg className="w-5 h-5 text-text-secondary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
                             </svg>
                         </Link>
                         <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                             style={{ backgroundColor: `${room?.cover_color}20` }}
                         >
                             <svg className="w-4 h-4" style={{ color: room?.cover_color }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
                             </svg>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                                <h1 className="font-display text-lg font-semibold leading-tight">{room?.name}</h1>
+                                <h1 className="font-display text-lg font-semibold leading-tight truncate">{room?.name}</h1>
                                 {room?.creator_name && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface/80 text-text-muted border border-border flex items-center gap-1">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface/80 text-text-muted border border-border flex items-center gap-1 flex-shrink-0 hidden sm:flex">
                                         <svg className="w-3 h-3 text-primary" fill="currentColor" viewBox="0 0 24 24">
                                             <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
                                         </svg>
@@ -228,23 +252,36 @@ export default function Room() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        {/* Phase 3: Listening avatars */}
+                    <div className="flex items-center gap-1 sm:gap-2">
+                        {/* Listening avatars */}
                         <ListeningAvatars members={onlineMembers} />
 
+                        {/* Share Room Button */}
                         <button
-                            onClick={() => {
-                                const url = `${window.location.origin}/embed/${slug}`;
-                                const embedCode = `<iframe src="${url}" width="100%" height="400" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
-                                navigator.clipboard.writeText(embedCode);
-                                toast.success('Embed code copied to clipboard!');
-                            }}
+                            onClick={handleShareRoom}
                             className="btn-ghost text-sm p-2 hidden sm:flex"
-                            title="Copy Embed Code"
+                            title="Share Room Link"
                         >
-                            <svg className="w-5 h-5 text-text-muted hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                            <svg className="w-5 h-5 text-text-muted hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
                             </svg>
+                        </button>
+
+                        {/* Theme Toggle */}
+                        <button
+                            onClick={toggleTheme}
+                            className="btn-ghost text-sm p-2 hidden sm:flex"
+                            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                        >
+                            {theme === 'dark' ? (
+                                <svg className="w-5 h-5 text-text-muted hover:text-warning transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                                </svg>
+                            ) : (
+                                <svg className="w-5 h-5 text-text-muted hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                                </svg>
+                            )}
                         </button>
 
                         <button
@@ -264,6 +301,59 @@ export default function Room() {
                             </svg>
                             <span className="hidden sm:inline">Members ({onlineMembers.length})</span>
                         </button>
+
+                        {/* User Avatar / Profile Dropdown */}
+                        {!isGuest ? (
+                            <div className="relative" ref={profileMenuRef}>
+                                <button
+                                    onClick={() => setShowProfileMenu(prev => !prev)}
+                                    className="flex items-center gap-2 p-1 rounded-lg hover:bg-card-hover transition-colors"
+                                >
+                                    <img
+                                        src={user?.avatar}
+                                        alt={user?.display_name}
+                                        className="w-7 h-7 rounded-full ring-2 ring-border"
+                                        referrerPolicy="no-referrer"
+                                    />
+                                </button>
+                                {showProfileMenu && (
+                                    <div className="absolute right-0 top-full mt-2 w-56 glass-card p-2 shadow-glow-lg animate-slide-up z-50">
+                                        <div className="flex items-center gap-3 p-3 border-b border-border mb-2">
+                                            <img src={user?.avatar} alt="" className="w-9 h-9 rounded-full" referrerPolicy="no-referrer" />
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-medium truncate">{user?.display_name}</p>
+                                                <p className="text-[10px] text-text-muted truncate">{user?.email}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => navigate('/')}
+                                            className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-card-hover transition-colors flex items-center gap-2"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                                            </svg>
+                                            All Rooms
+                                        </button>
+                                        <button
+                                            onClick={() => { useAuthStore.getState().logout(); navigate('/login'); }}
+                                            className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-danger/10 text-danger transition-colors flex items-center gap-2"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                                            </svg>
+                                            Logout
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <a
+                                href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/auth/google`}
+                                className="btn-primary text-xs px-3 py-1.5"
+                            >
+                                Login
+                            </a>
+                        )}
                     </div>
                 </div>
             </header>
@@ -281,16 +371,17 @@ export default function Room() {
                                 currentTime={playerState.currentTime}
                                 currentSong={currentSong}
                                 isRoomOwner={isRoomOwner}
+                                repeatMode={repeatMode}
                                 emitPlayerSync={emitPlayerSync}
                                 emitPlayerSkip={emitPlayerSkip}
                                 emitPlayerEnded={emitPlayerEnded}
                             />
-                            {/* Phase 3: Floating emoji reactions overlay */}
-                            <EmojiReactions socket={socket} />
+                            {/* Floating emoji reactions overlay */}
+                            {!isGuest && <EmojiReactions socket={socket} />}
                         </div>
 
-                        {/* Add Song */}
-                        <AddSong onAdd={addSong} slug={slug} songs={songs} />
+                        {/* Add Song — hidden for guests */}
+                        {!isGuest && <AddSong onAdd={addSong} slug={slug} songs={songs} />}
 
                         {/* Queue / History tabs */}
                         <div>
@@ -316,10 +407,14 @@ export default function Room() {
                                     songs={queue}
                                     isLoading={queueLoading}
                                     isRoomOwner={isRoomOwner}
+                                    isGuest={isGuest}
                                     userId={user?.id}
                                     onRemove={removeSong}
                                     onClear={clearQueue}
                                     onReorder={reorderQueue}
+                                    onShuffle={shuffleQueue}
+                                    repeatMode={repeatMode}
+                                    onRepeatToggle={cycleRepeatMode}
                                 />
                             ) : (
                                 <QueueHistory slug={slug} onReplay={addSong} />
@@ -339,26 +434,17 @@ export default function Room() {
                             />
                         </div>
 
-                        {/* Phase 3: Chat */}
-                        <ChatBox socket={socket} />
+                        {/* Chat — hidden for guests */}
+                        {!isGuest && <ChatBox socket={socket} />}
 
-                        {/* Phase 3: Personal Stats */}
-                        <PersonalStats slug={slug} />
+                        {/* Lyrics Panel */}
+                        <LyricsPanel currentSong={currentSong} />
 
-                        {/* Phase 3: Leaderboard */}
-                        <Leaderboard slug={slug} />
-
-                        {/* Phase 3: Activity Feed */}
+                        {/* Activity Feed */}
                         <ActivityFeed slug={slug} />
 
-                        {/* Phase 4: Room Schedule (Owner only) */}
-                        {isRoomOwner && <RoomSchedule slug={slug} />}
-
-                        {/* Phase 4: Room Blocklist (Owner only) */}
-                        {isRoomOwner && <RoomBlocklist slug={slug} />}
-
-                        {/* Phase 4: Slack Webhook (Owner only) */}
-                        {isRoomOwner && <SlackWebhookConfig slug={slug} />}
+                        {/* Room Stats */}
+                        <RoomStats slug={slug} />
                     </div>
                 </div>
             </main>
@@ -377,6 +463,78 @@ export default function Room() {
                 onClose={() => setShowHelp(false)}
                 isRoomOwner={isRoomOwner}
             />
+
+            {/* Share Modal (fallback) */}
+            {showShareModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowShareModal(false)} />
+                    <div className="glass-card p-6 w-full max-w-sm relative z-10 animate-slide-up">
+                        <h3 className="font-display text-lg font-bold mb-4 text-center">Share Room</h3>
+
+                        {/* QR Code */}
+                        <div className="flex justify-center mb-4">
+                            <canvas
+                                ref={(el) => {
+                                    qrCanvasRef.current = el;
+                                    if (el) generateQRCode(el, `${window.location.origin}/room/${slug}`, 180);
+                                }}
+                                className="rounded-xl border border-border"
+                            />
+                        </div>
+                        <p className="text-center text-xs text-text-muted mb-4">Scan QR code or copy link below</p>
+
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                readOnly
+                                value={`${window.location.origin}/room/${slug}`}
+                                className="input-field flex-1 text-sm"
+                                onFocus={e => e.target.select()}
+                            />
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(`${window.location.origin}/room/${slug}`);
+                                    toast.success('Copied!');
+                                    setShowShareModal(false);
+                                }}
+                                className="btn-primary text-sm"
+                            >
+                                Copy
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => setShowShareModal(false)}
+                            className="btn-ghost w-full mt-3 text-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Guest Login Banner */}
+            {isGuest && (
+                <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border">
+                    <div className="bg-gradient-to-r from-primary/10 via-card to-primary/10 backdrop-blur-xl px-4 py-3">
+                        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <span className="text-lg">🎧</span>
+                                <p className="text-text-secondary text-sm truncate">
+                                    <span className="font-medium text-text-primary">Listening as Guest</span>
+                                    {' — '} Login to add songs, chat, and more
+                                </p>
+                            </div>
+                            <a
+                                href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/auth/google`}
+                                className="btn-primary text-sm px-4 py-2 whitespace-nowrap flex items-center gap-2"
+                            >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
+                                Login with Google
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

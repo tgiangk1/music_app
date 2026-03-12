@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 
-export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner }) {
+export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeatMode = 'off' }) {
     const playerRef = useRef(null);
     const { videoId, state: playerState } = usePlayerStore();
 
@@ -18,12 +18,18 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner }) {
         const ytState = event.data;
 
         if (ytState === 0) {
-            // Video ended — notify server to advance queue
-            emitPlayerEnded?.();
+            // Video ended
+            if (repeatMode === 'single') {
+                // Repeat single: seek back to start
+                event.target.seekTo(0);
+                event.target.playVideo();
+            } else {
+                // Normal or queue repeat: advance to next
+                emitPlayerEnded?.();
+            }
         }
 
         if (isRoomOwner && ytState === 1) {
-            // Owner playing — sync state to others
             const currentTime = event.target.getCurrentTime();
             emitPlayerSync?.({
                 videoId,
@@ -40,7 +46,16 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner }) {
                 currentTime,
             });
         }
-    }, [videoId, isRoomOwner, emitPlayerSync, emitPlayerEnded]);
+    }, [videoId, isRoomOwner, emitPlayerSync, emitPlayerEnded, repeatMode]);
+
+    // Handle YouTube errors (blocked/unavailable videos)
+    const onError = useCallback((event) => {
+        console.warn('YouTube player error:', event.data);
+        // Error codes: 2=invalid param, 5=HTML5 error, 100=not found, 101/150=embed restricted
+        if (isRoomOwner) {
+            emitPlayerEnded?.(); // Auto-skip to next
+        }
+    }, [isRoomOwner, emitPlayerEnded]);
 
     const seekTo = useCallback((time) => {
         playerRef.current?.seekTo(time, true);
@@ -58,6 +73,7 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner }) {
         playerRef,
         onReady,
         onStateChange,
+        onError,
         seekTo,
         play,
         pause,
