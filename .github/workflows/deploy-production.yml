@@ -1,7 +1,7 @@
 # ==============================================================================
 # Deploy Production — Antigravity Jukebox
 # ==============================================================================
-# Trigger: merge into main (only after CI passes)
+# Trigger: merge into main
 # Purpose: deploy to production and create GitHub Release with changelog
 # ==============================================================================
 
@@ -17,7 +17,6 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  checks: read
   contents: write
 
 env:
@@ -25,29 +24,11 @@ env:
 
 jobs:
   # ============================================================================
-  # Gate: Wait for CI to pass first
-  # ============================================================================
-  ci-check:
-    name: ✅ Verify CI
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for CI
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.sha }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          check-name: '🏗️ Build'
-          wait-interval: 10
-          allowed-conclusions: success
-
-  # ============================================================================
   # Job 1: Deploy Frontend to Vercel (Production)
-  # Let Vercel handle the build — env vars set in Vercel Dashboard
   # ============================================================================
   deploy-frontend:
     name: 🚀 Deploy FE → Vercel Production
     runs-on: ubuntu-latest
-    needs: ci-check
     steps:
       - uses: actions/checkout@v4
 
@@ -72,7 +53,6 @@ jobs:
   deploy-backend:
     name: 🚀 Deploy API → Render Production
     runs-on: ubuntu-latest
-    needs: ci-check
     steps:
       - name: Deploy to Render Production
         run: |
