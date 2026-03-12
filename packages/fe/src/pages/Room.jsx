@@ -16,7 +16,7 @@ import ShortcutsHelp from '../components/ShortcutsHelp';
 // Social components
 import EmojiReactions from '../components/Social/EmojiReactions';
 import ChatBox from '../components/Social/ChatBox';
-import ListeningAvatars from '../components/Social/ListeningAvatars';
+
 import ActivityFeed from '../components/Social/ActivityFeed';
 import LyricsPanel from '../components/Social/LyricsPanel';
 import RoomStats from '../components/Social/RoomStats';
@@ -253,8 +253,6 @@ export default function Room() {
                     </div>
 
                     <div className="flex items-center gap-1 sm:gap-2">
-                        {/* Listening avatars */}
-                        <ListeningAvatars members={onlineMembers} />
 
                         {/* Share Room Button */}
                         <button

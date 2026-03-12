@@ -38,18 +38,18 @@ body {
 }
 
 [data-theme="light"] {
-  --color-base: 248 247 255;
-  --color-surface: 237 233 254;
+  --color-base: 250 249 255;
+  --color-surface: 243 240 252;
   --color-card: 255 255 255;
-  --color-card-hover: 243 240 255;
-  --color-border: 212 208 232;
-  --color-border-glow: 139 92 246;
+  --color-card-hover: 248 245 255;
+  --color-border: 224 218 245;
+  --color-border-glow: 124 58 237;
   --color-primary: 124 58 237;
   --color-primary-hover: 109 40 217;
   --color-accent: 139 92 246;
-  --color-text-primary: 26 26 46;
-  --color-text-secondary: 74 74 106;
-  --color-text-muted: 136 136 160;
+  --color-text-primary: 15 15 30;
+  --color-text-secondary: 64 64 96;
+  --color-text-muted: 120 116 148;
   --color-success: 5 150 105;
   --color-danger: 220 38 38;
   --color-warning: 217 119 6;
@@ -61,20 +61,71 @@ body {
 }
 
 [data-theme="light"] #root {
-  background: radial-gradient(ellipse at 50% 0%, rgba(139, 92, 246, 0.06) 0%, transparent 70%), rgb(var(--color-base));
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(124, 58, 237, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, 0.04) 0%, transparent 50%),
+    rgb(var(--color-base));
 }
 
 [data-theme="light"] body::before {
   opacity: 0;
 }
 
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(224, 218, 245, 0.8);
+  box-shadow: 0 1px 3px rgba(124, 58, 237, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .glass-card-hover:hover {
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08), 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .input-field {
+  background: rgb(var(--color-base));
+  border-color: rgba(224, 218, 245, 0.9);
+}
+
+[data-theme="light"] .input-field:focus {
+  border-color: rgb(124, 58, 237);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+[data-theme="light"] .btn-ghost {
+  border-color: transparent;
+}
+
+[data-theme="light"] .btn-ghost:hover {
+  background: rgba(124, 58, 237, 0.06);
+  border-color: rgba(224, 218, 245, 0.8);
+}
+
+[data-theme="light"] header {
+  background: rgba(250, 249, 255, 0.85) !important;
+  border-bottom-color: rgba(224, 218, 245, 0.6) !important;
+}
+
 [data-theme="light"] ::-webkit-scrollbar-track {
-  background: rgb(var(--color-surface));
+  background: rgb(var(--color-base));
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: rgb(var(--color-border));
+  background: rgba(224, 218, 245, 0.8);
 }
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.3);
+}
+
+[data-theme="light"] input[type="range"] {
+  background: rgba(224, 218, 245, 0.6);
+}
+
+[data-theme="light"] input[type="range"]::-webkit-slider-thumb {
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 1px 4px rgba(124, 58, 237, 0.3);
+}
+
 
 /* Noise grain overlay */
 body::before {
