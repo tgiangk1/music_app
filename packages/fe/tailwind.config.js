@@ -1,4 +1,13 @@
 /** @type {import('tailwindcss').Config} */
+function withOpacity(variableName) {
+    return ({ opacityValue }) => {
+        if (opacityValue !== undefined) {
+            return `rgba(var(${variableName}), ${opacityValue})`;
+        }
+        return `rgb(var(${variableName}))`;
+    };
+}
+
 export default {
     content: [
         "./index.html",
@@ -7,22 +16,22 @@ export default {
     theme: {
         extend: {
             colors: {
-                base: '#0a0a0f',
-                surface: '#13131a',
-                card: '#1a1a24',
-                'card-hover': '#1f1f2e',
-                border: '#2a2a3d',
-                'border-glow': 'rgba(139, 92, 246, 0.25)',
-                primary: '#8b5cf6',
-                'primary-hover': '#7c3aed',
+                base: withOpacity('--color-base'),
+                surface: withOpacity('--color-surface'),
+                card: withOpacity('--color-card'),
+                'card-hover': withOpacity('--color-card-hover'),
+                border: withOpacity('--color-border'),
+                'border-glow': withOpacity('--color-border-glow'),
+                primary: withOpacity('--color-primary'),
+                'primary-hover': withOpacity('--color-primary-hover'),
                 'primary-glow': 'rgba(139, 92, 246, 0.19)',
-                accent: '#a78bfa',
-                'text-primary': '#f5f3ff',
-                'text-secondary': '#a1a1aa',
-                'text-muted': '#52525b',
-                success: '#10b981',
-                danger: '#ef4444',
-                warning: '#f59e0b',
+                accent: withOpacity('--color-accent'),
+                'text-primary': withOpacity('--color-text-primary'),
+                'text-secondary': withOpacity('--color-text-secondary'),
+                'text-muted': withOpacity('--color-text-muted'),
+                success: withOpacity('--color-success'),
+                danger: withOpacity('--color-danger'),
+                warning: withOpacity('--color-warning'),
                 'badge-admin': '#f59e0b',
                 'badge-member': '#6b7280',
             },
