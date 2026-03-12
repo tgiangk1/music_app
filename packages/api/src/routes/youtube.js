@@ -4,18 +4,12 @@ import { searchYouTube } from '../services/youtube.js';
 
 const router = Router();
 
-// GET /api/youtube/search?q=query&limit=10 — search YouTube
 router.get('/search', verifyToken, async (req, res) => {
     try {
         const { q, limit } = req.query;
-
-        if (!q || !q.trim()) {
-            return res.status(400).json({ error: 'Search query is required' });
-        }
-
+        if (!q || !q.trim()) return res.status(400).json({ error: 'Search query is required' });
         const maxLimit = Math.min(parseInt(limit) || 10, 20);
         const results = await searchYouTube(q.trim(), maxLimit);
-
         res.json({ results });
     } catch (err) {
         console.error('YouTube search error:', err);
