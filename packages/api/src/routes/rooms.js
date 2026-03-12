@@ -7,7 +7,6 @@ import { playerStates } from './player.js';
 
 const router = Router();
 
-// Helper: slugify
 function slugify(text) {
     return text
         .toLowerCase()
@@ -18,12 +17,10 @@ function slugify(text) {
         .replace(/^-|-$/g, '');
 }
 
-// GET /api/rooms — list accessible rooms
 router.get('/', verifyToken, (req, res) => {
     const db = getDb();
     const userId = req.user.userId;
 
-    // Public rooms + private rooms user is member of
     const rooms = db.prepare(`
     SELECT r.*, u.display_name as creator_name,
       (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as member_count
@@ -38,7 +35,6 @@ router.get('/', verifyToken, (req, res) => {
     res.json({ rooms });
 });
 
-// POST /api/rooms — create room [ANY authenticated user]
 router.post('/', verifyToken, (req, res) => {
     const { name, description, isPublic = true, coverColor = '#8b5cf6' } = req.body;
 
@@ -50,7 +46,6 @@ router.post('/', verifyToken, (req, res) => {
     const id = uuidv4();
     let slug = slugify(name);
 
-    // Ensure unique slug
     const existing = db.prepare('SELECT id FROM rooms WHERE slug = ?').get(slug);
     if (existing) {
         slug = `${slug}-${id.slice(0, 6)}`;
@@ -61,14 +56,12 @@ router.post('/', verifyToken, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(id, name.trim(), slug, description || null, coverColor, isPublic ? 1 : 0, req.user.userId);
 
-    // Auto-add creator as member
     db.prepare('INSERT INTO room_members (room_id, user_id) VALUES (?, ?)').run(id, req.user.userId);
 
     const room = db.prepare('SELECT * FROM rooms WHERE id = ?').get(id);
     res.status(201).json({ room });
 });
 
-// GET /api/rooms/:slug — room detail
 router.get('/:slug', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare(`
@@ -82,7 +75,6 @@ router.get('/:slug', optionalAuth, (req, res) => {
         return res.status(404).json({ error: 'Room not found' });
     }
 
-    // Check access for private rooms
     if (!room.is_public) {
         if (!req.user) {
             return res.status(403).json({ error: 'Login required to access private rooms' });
@@ -96,18 +88,14 @@ router.get('/:slug', optionalAuth, (req, res) => {
         }
     }
 
-    // Get member count
     const memberCount = db.prepare('SELECT COUNT(*) as count FROM room_members WHERE room_id = ?').get(room.id).count;
-
-    // Tell the client if this user is the room owner
     const isOwner = req.user ? room.created_by === req.user.userId : false;
 
     res.json({ room: { ...room, memberCount, isOwner } });
 });
 
-// PATCH /api/rooms/:slug — update room [Owner or Admin]
 router.patch('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
-    const room = req.room; // set by middleware
+    const room = req.room;
 
     const { name, description, isPublic, coverColor, songLimit } = req.body;
     const updates = {};
@@ -130,7 +118,6 @@ router.patch('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
 
     const updated = db.prepare('SELECT * FROM rooms WHERE id = ?').get(room.id);
 
-    // Broadcast room update via Socket.IO
     const io = req.app.get('io');
     const roomNsp = io.of(`/room/${room.slug}`);
     roomNsp.emit('room:updated', updated);
@@ -138,15 +125,12 @@ router.patch('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     res.json({ room: updated });
 });
 
-// DELETE /api/rooms/:slug — delete room [Owner or Admin]
 router.delete('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     const room = req.room;
     const db = getDb();
 
-    // CQ-1: Clean up in-memory state to prevent memory leak
     playerStates.delete(room.slug);
 
-    // Disconnect all sockets in this room namespace
     const io = req.app.get('io');
     const roomNsp = io.of(`/room/${room.slug}`);
     roomNsp.disconnectSockets(true);
@@ -156,7 +140,6 @@ router.delete('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     res.json({ message: 'Room deleted' });
 });
 
-// GET /api/rooms/:slug/members — list room members
 router.get('/:slug/members', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
@@ -176,7 +159,6 @@ router.get('/:slug/members', optionalAuth, (req, res) => {
     res.json({ members });
 });
 
-// POST /api/rooms/:slug/members — add member [Owner or Admin]
 router.post('/:slug/members', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     const { userId } = req.body;
     if (!userId) {
@@ -201,7 +183,6 @@ router.post('/:slug/members', verifyToken, requireRoomOwnerOrAdmin, (req, res) =
     res.status(201).json({ message: 'Member added' });
 });
 
-// DELETE /api/rooms/:slug/members/:userId — remove member [Owner or Admin]
 router.delete('/:slug/members/:userId', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     const room = req.room;
     const db = getDb();

@@ -5,7 +5,6 @@ import { requireAdmin } from '../middlewares/role.js';
 
 const router = Router();
 
-// GET /api/users — list all users [Admin]
 router.get('/', verifyToken, requireAdmin, (req, res) => {
     const db = getDb();
     const page = parseInt(req.query.page) || 1;
@@ -52,7 +51,6 @@ router.get('/', verifyToken, requireAdmin, (req, res) => {
     });
 });
 
-// PATCH /api/users/:id/role — change role [Admin]
 router.patch('/:id/role', verifyToken, requireAdmin, (req, res) => {
     const { role } = req.body;
     if (!role || !['member', 'admin'].includes(role)) {
@@ -65,21 +63,18 @@ router.patch('/:id/role', verifyToken, requireAdmin, (req, res) => {
         return res.status(404).json({ error: 'User not found' });
     }
 
-    // Prevent self-demotion
     if (user.id === req.user.userId && role === 'member') {
         return res.status(400).json({ error: 'Cannot demote yourself' });
     }
 
     db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
 
-    // Notify connected sockets about role change
     const io = req.app.get('io');
     io.of('/').emit('user:roleChanged', { userId: user.id, role });
 
     res.json({ message: `Role updated to ${role}` });
 });
 
-// POST /api/users/:id/ban — ban user [Admin]
 router.post('/:id/ban', verifyToken, requireAdmin, (req, res) => {
     const db = getDb();
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
@@ -92,18 +87,11 @@ router.post('/:id/ban', verifyToken, requireAdmin, (req, res) => {
     }
 
     db.prepare('UPDATE users SET is_banned = 1 WHERE id = ?').run(user.id);
-
-    // Delete all refresh tokens
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(user.id);
-
-    // Disconnect user from all socket namespaces
-    const io = req.app.get('io');
-    // We'll let the socket middleware handle disconnect on next auth check
 
     res.json({ message: 'User banned' });
 });
 
-// DELETE /api/users/:id/ban — unban user [Admin]
 router.delete('/:id/ban', verifyToken, requireAdmin, (req, res) => {
     const db = getDb();
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);

@@ -4,7 +4,6 @@ import { searchYouTube } from '../services/youtube.js';
 
 const router = Router();
 
-// GET /api/youtube/search?q=query&limit=10 — search YouTube
 router.get('/search', verifyToken, async (req, res) => {
     try {
         const { q, limit } = req.query;
