@@ -1,0 +1,46 @@
+# ==============================================================================
+# render.yaml — Render Infrastructure as Code
+# ==============================================================================
+# This file configures services on Render. Place at project root.
+# Docs: https://render.com/docs/blueprint-spec
+# ==============================================================================
+
+services:
+  # Backend API (Node.js + Express + SQLite)
+  - type: web
+    name: antigravity-jukebox-api
+    runtime: node
+    region: singapore     # closest to Vietnam
+    plan: free
+    rootDir: packages/api
+    buildCommand: npm install
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: GOOGLE_CLIENT_ID
+        sync: false        # set manually in dashboard
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRES
+        value: 15m
+      - key: REFRESH_TOKEN_EXPIRES
+        value: 7d
+      - key: CLIENT_URL
+        sync: false        # set to Vercel URL
+      - key: FIRST_ADMIN_EMAIL
+        sync: false
+    disk:
+      name: jukebox-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1            # persistent disk for SQLite
+    healthCheckPath: /health
+    autoDeploy: false      # deploy via GitHub Actions, not auto
