@@ -16,6 +16,10 @@ concurrency:
   group: deploy-staging
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+
 env:
   NODE_VERSION: '20'
 
