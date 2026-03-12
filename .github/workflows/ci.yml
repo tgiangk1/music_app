@@ -1,0 +1,109 @@
+# ==============================================================================
+# CI Pipeline — Antigravity Jukebox
+# ==============================================================================
+# Runs on: every push to any branch, every PR targeting main
+# Purpose: validate code quality, run tests, and verify build before merge
+# ==============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch/PR to save resources
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================================================
+  # Job 1: Lint — ESLint check for both packages
+  # ============================================================================
+  lint:
+    name: "\U0001F50D Lint"
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout source code
+      - uses: actions/checkout@v4
+
+      # Setup Node.js with npm cache
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # Install all workspace dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Run ESLint on frontend package
+      - name: Lint frontend
+        run: npm run lint -w packages/fe --if-present
+
+      # Run ESLint on backend package
+      - name: Lint backend
+        run: npm run lint -w packages/api --if-present
+
+  # ============================================================================
+  # Job 2: Test — Jest unit tests for both packages
+  # ============================================================================
+  test:
+    name: "\U0001F9EA Test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Run tests on frontend (skip if no test script)
+      - name: Test frontend
+        run: npm test -w packages/fe --if-present
+
+      # Run tests on backend (skip if no test script)
+      - name: Test backend
+        run: npm test -w packages/api --if-present
+
+  # ============================================================================
+  # Job 3: Build — Verify production build succeeds
+  # ============================================================================
+  build:
+    name: "\U0001F3D7\uFE0F Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Build frontend (Vite production build)
+      - name: Build frontend
+        run: npm run build -w packages/fe
+
+      # Verify backend can start without errors (syntax check)
+      - name: Verify backend
+        run: node --check packages/api/src/index.js
+
+      # Upload build artifacts for deploy workflows
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: fe-dist
+          path: packages/fe/dist/
+          retention-days: 1
