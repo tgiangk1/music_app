@@ -22,7 +22,13 @@ router.get('/:slug/player', optionalAuth, (req, res) => {
         const currentSong = db.prepare('SELECT * FROM songs WHERE room_id = ? AND is_playing = 1').get(room.id);
         if (currentSong) { state.videoId = currentSong.youtube_id; state.state = 'playing'; }
     }
-    res.json({ player: state });
+    // Calculate estimated current time for playing videos
+    const responseState = { ...state };
+    if (responseState.state === 'playing' && responseState.updatedAt) {
+        const elapsed = (Date.now() - new Date(responseState.updatedAt).getTime()) / 1000;
+        responseState.currentTime = (responseState.currentTime || 0) + elapsed;
+    }
+    res.json({ player: responseState });
 });
 
 router.post('/:slug/player/sync', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {

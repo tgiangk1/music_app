@@ -1,9 +1,23 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 
 export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeatMode = 'off' }) {
     const playerRef = useRef(null);
     const { videoId, state: playerState } = usePlayerStore();
+
+    // Periodic sync: owner emits currentTime every 10s while playing
+    useEffect(() => {
+        if (!isRoomOwner || playerState !== 'playing' || !videoId) return;
+        const interval = setInterval(() => {
+            try {
+                const currentTime = playerRef.current?.getCurrentTime?.();
+                if (currentTime != null && currentTime > 0) {
+                    emitPlayerSync?.({ videoId, state: 'playing', currentTime });
+                }
+            } catch { }
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [isRoomOwner, playerState, videoId, emitPlayerSync]);
 
     const onReady = useCallback((event) => {
         playerRef.current = event.target;

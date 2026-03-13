@@ -118,8 +118,8 @@ export default function ChatBox({ socket }) {
                                             alt=""
                                             className="w-7 h-7 rounded-full flex-shrink-0 mt-0.5"
                                         />
-                                        <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
-                                            <div className={`rounded-2xl px-3 py-2 text-sm
+                                        <div className={`flex flex-col min-w-0 max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
+                                            <div className={`rounded-2xl px-3 py-2 text-sm overflow-hidden
                         ${isMe
                                                     ? 'bg-primary/20 text-text-primary rounded-tr-sm'
                                                     : 'bg-card text-text-primary rounded-tl-sm'}`}
@@ -127,7 +127,7 @@ export default function ChatBox({ socket }) {
                                                 {!isMe && (
                                                     <p className="text-xs font-semibold text-primary mb-0.5">{msg.user.displayName}</p>
                                                 )}
-                                                <p className="break-words">{msg.content}</p>
+                                                <p style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{msg.content}</p>
                                             </div>
                                             <div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-text-muted ${isMe ? 'justify-end' : ''}`}>
                                                 <span>{formatTime(msg.createdAt)}</span>

@@ -130,6 +130,13 @@ export function useSocket(slug) {
             socket.disconnect();
         });
 
+        // Kicked from room
+        socket.on('room:kicked', ({ message }) => {
+            toast.error(message || 'You have been kicked from this room');
+            socket.disconnect();
+            window.location.href = '/';
+        });
+
         // Room updated
         socket.on('room:updated', (room) => {
             toast(`Room updated: ${room.name}`);

@@ -62,9 +62,16 @@ export const useAuthStore = create(
         {
             name: 'jukebox-auth',
             partialize: (state) => ({
+                user: state.user,
                 accessToken: state.accessToken,
                 refreshToken: state.refreshToken,
             }),
+            onRehydrateStorage: () => (state) => {
+                // After restoring from localStorage, stop loading immediately
+                if (state) {
+                    state.isLoading = false;
+                }
+            },
         }
     )
 );

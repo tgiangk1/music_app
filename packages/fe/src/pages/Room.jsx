@@ -42,6 +42,7 @@ export default function Room() {
     const qrCanvasRef = useRef(null);
     const profileMenuRef = useRef(null);
     const { theme, toggleTheme } = useTheme();
+    const [showSettings, setShowSettings] = useState(false);
 
     const isGuest = !user && !authLoading;
     const isAdmin = user?.role === 'admin';
@@ -80,8 +81,13 @@ export default function Room() {
                 setIsLoading(false);
             })
             .catch(err => {
-                if (err.response?.status === 403) toast.error('You do not have access to this room');
-                else if (err.response?.status === 404) toast.error('Room not found');
+                if (err.response?.status === 403 && err.response?.data?.requiresPassword) {
+                    toast.error('This room requires a password to join');
+                } else if (err.response?.status === 403) {
+                    toast.error('You do not have access to this room');
+                } else if (err.response?.status === 404) {
+                    toast.error('Room not found');
+                }
                 navigate(isGuest ? '/login' : '/');
             });
     }, [slug, navigate]);
@@ -253,6 +259,20 @@ export default function Room() {
                     </div>
 
                     <div className="flex items-center gap-1 sm:gap-2">
+
+                        {/* Room Settings (Owner only) */}
+                        {isRoomOwner && (
+                            <button
+                                onClick={() => setShowSettings(true)}
+                                className="btn-ghost text-sm p-2 hidden sm:flex"
+                                title="Room Settings"
+                            >
+                                <svg className="w-5 h-5 text-text-muted hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a7.723 7.723 0 0 1 0 .255c-.007.378.138.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                </svg>
+                            </button>
+                        )}
 
                         {/* Share Room Button */}
                         <button
@@ -426,8 +446,10 @@ export default function Room() {
                         <div className={`${showMembers ? 'block' : 'hidden'} lg:block`}>
                             <MembersList
                                 members={onlineMembers}
-                                isAdmin={isAdmin}
+                                isRoomOwner={isRoomOwner}
+                                currentUserId={user?.id}
                                 roomSlug={slug}
+                                socket={socket}
                                 onClose={() => setShowMembers(false)}
                             />
                         </div>
@@ -533,6 +555,125 @@ export default function Room() {
                     </div>
                 </div>
             )}
+            {/* Room Settings Modal */}
+            {showSettings && (
+                <RoomSettingsModal
+                    room={room}
+                    slug={slug}
+                    onClose={() => setShowSettings(false)}
+                    onUpdated={(updatedRoom) => setRoom(prev => ({ ...prev, ...updatedRoom }))}
+                />
+            )}
+        </div>
+    );
+}
+
+function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSavePassword = async () => {
+        setIsSubmitting(true);
+        try {
+            const res = await api.patch(`/api/rooms/${slug}`, { password: password.trim() || null });
+            toast.success(password.trim() ? 'Room password updated!' : 'Room password removed!');
+            onUpdated(res.data.room);
+            onClose();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to update');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleRemovePassword = async () => {
+        setIsSubmitting(true);
+        try {
+            const res = await api.patch(`/api/rooms/${slug}`, { password: null });
+            toast.success('Room password removed!');
+            onUpdated(res.data.room);
+            onClose();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to remove password');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="glass-card p-6 w-full max-w-md relative z-10 animate-slide-up">
+                <h3 className="font-display text-lg font-bold mb-5 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a7.723 7.723 0 0 1 0 .255c-.007.378.138.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
+                    Room Settings
+                </h3>
+
+                {/* Password Section */}
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm text-text-secondary mb-1.5 flex items-center gap-1.5">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            </svg>
+                            {room?.has_password ? 'Change Password' : 'Set Password'}
+                        </label>
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="input-field w-full pr-10"
+                                placeholder={room?.has_password ? 'Enter new password' : 'Enter password'}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+                            >
+                                {showPassword ? (
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
+                        <p className="text-xs text-text-muted mt-1">Password expires after 10 minutes — users will need to re-enter</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleSavePassword}
+                            disabled={isSubmitting || !password.trim()}
+                            className="btn-primary flex-1 text-sm disabled:opacity-50"
+                        >
+                            {isSubmitting ? 'Saving...' : password.trim() ? 'Save Password' : 'Enter password first'}
+                        </button>
+                        {room?.has_password && (
+                            <button
+                                onClick={handleRemovePassword}
+                                disabled={isSubmitting}
+                                className="btn-ghost text-sm text-danger hover:bg-danger/10 px-4"
+                            >
+                                Remove
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-border">
+                    <button onClick={onClose} className="btn-ghost w-full text-sm">Close</button>
+                </div>
+            </div>
         </div>
     );
 }
