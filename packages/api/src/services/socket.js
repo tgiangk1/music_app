@@ -55,7 +55,15 @@ export function initSocketIO(server) {
         const uniqueMembers = [...new Map(members.map(m => [m.userId, m])).values()];
         socket.nsp.emit('member:list', uniqueMembers);
         const state = playerStates.get(slug);
-        if (state) socket.emit('player:sync', state);
+        if (state) {
+            // Calculate estimated current time for joiners
+            const syncState = { ...state };
+            if (syncState.state === 'playing' && syncState.updatedAt) {
+                const elapsed = (Date.now() - new Date(syncState.updatedAt).getTime()) / 1000;
+                syncState.currentTime = (syncState.currentTime || 0) + elapsed;
+            }
+            socket.emit('player:sync', syncState);
+        }
 
         socket.on('player:sync', (data) => {
             if (!data || typeof data !== 'object') return;
@@ -142,6 +150,31 @@ export function initSocketIO(server) {
             const messages = db.prepare(`SELECT cm.id, cm.content, cm.song_id, cm.created_at, u.id as user_id, u.display_name, u.avatar, s.title as song_title FROM chat_messages cm JOIN users u ON cm.user_id = u.id LEFT JOIN songs s ON cm.song_id = s.id WHERE cm.room_id = ? ORDER BY cm.created_at DESC LIMIT 50`).all(socket.roomId);
             const formatted = messages.reverse().map(m => ({ id: m.id, content: m.content, songTitle: m.song_title, user: { userId: m.user_id, displayName: m.display_name, avatar: m.avatar }, createdAt: m.created_at }));
             socket.emit('chat:history', formatted);
+        });
+
+        // Kick member (owner only)
+        socket.on('member:kick', ({ userId }) => {
+            if (socket.user.userId !== socket.roomOwnerId && socket.user.role !== 'admin') return;
+            if (userId === socket.roomOwnerId) return; // Can't kick the owner
+
+            // Find all sockets of the kicked user in this room
+            const nsp = socket.nsp;
+            for (const [id, s] of nsp.sockets) {
+                if (s.user?.userId === userId) {
+                    s.emit('room:kicked', { message: 'You have been kicked from this room' });
+                    s.disconnect(true);
+                }
+            }
+
+            // Remove from online members
+            if (onlineMembers.has(slug)) {
+                for (const [sid, m] of onlineMembers.get(slug)) {
+                    if (m.userId === userId) onlineMembers.get(slug).delete(sid);
+                }
+                const members = Array.from(onlineMembers.get(slug).values());
+                const uniqueMembers = [...new Map(members.map(m => [m.userId, m])).values()];
+                nsp.emit('member:list', uniqueMembers);
+            }
         });
 
         socket.on('disconnect', () => {

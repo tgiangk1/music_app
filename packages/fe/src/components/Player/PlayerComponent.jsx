@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import YouTube from 'react-youtube';
 import { usePlayer } from '../../hooks/usePlayer';
 import { usePlayerStore } from '../../store/playerStore';
@@ -14,15 +14,39 @@ export default function PlayerComponent({
     emitPlayerSkip,
     emitPlayerEnded,
 }) {
-    const { onReady, onStateChange, onError, seekTo, opts } = usePlayer({
+    const { onReady, onStateChange, onError, opts } = usePlayer({
         emitPlayerSync,
         emitPlayerEnded,
-        isAdmin: isRoomOwner,
+        isRoomOwner,
         repeatMode,
     });
 
     const syncedRef = useRef(false);
     const playerRef = useRef(null);
+    const [startAt, setStartAt] = useState(0);
+
+    // Capture sync time for YouTube start parameter (set once per video)
+    useEffect(() => {
+        if (currentTime > 0 && !syncedRef.current) {
+            setStartAt(Math.floor(currentTime));
+            syncedRef.current = true;
+        }
+    }, [currentTime]);
+
+    // Reset on video change
+    useEffect(() => {
+        syncedRef.current = false;
+        setStartAt(0);
+    }, [videoId]);
+
+    // Build opts with start parameter — YouTube will natively load at this position
+    const playerOpts = useMemo(() => ({
+        ...opts,
+        playerVars: {
+            ...opts.playerVars,
+            start: startAt > 0 ? startAt : undefined,
+        },
+    }), [opts, startAt]);
 
     // Volume Control — local state, persisted in localStorage
     const [volume, setVolume] = useState(() => {
@@ -69,20 +93,21 @@ export default function PlayerComponent({
             if (isMuted) event.target.mute();
         } catch { }
         onReady(event);
-    };
 
-    // Sync player position when receiving state from server (non-owner members)
-    useEffect(() => {
-        if (!isRoomOwner && playerState === 'playing' && currentTime > 0 && !syncedRef.current) {
-            syncedRef.current = true;
-            setTimeout(() => seekTo(currentTime), 500);
+        // Fallback: if sync data arrives after YouTube loaded, use loadVideoById
+        if (!syncedRef.current) {
+            setTimeout(() => {
+                const latestState = usePlayerStore.getState();
+                if (latestState.currentTime > 0 && !syncedRef.current) {
+                    syncedRef.current = true;
+                    event.target.loadVideoById({
+                        videoId: videoId,
+                        startSeconds: Math.floor(latestState.currentTime),
+                    });
+                }
+            }, 2000);
         }
-    }, [isRoomOwner, playerState, currentTime, seekTo]);
-
-    // Reset sync flag on video change
-    useEffect(() => {
-        syncedRef.current = false;
-    }, [videoId]);
+    };
 
     // Progress bar — poll YouTube player for current time
     const [progress, setProgress] = useState({ current: 0, duration: 0 });
@@ -156,7 +181,7 @@ export default function PlayerComponent({
             <div className="aspect-video bg-black relative">
                 <YouTube
                     videoId={videoId}
-                    opts={opts}
+                    opts={playerOpts}
                     onReady={handleReady}
                     onStateChange={onStateChange}
                     onError={(e) => {
@@ -231,27 +256,33 @@ export default function PlayerComponent({
                             {/* Volume Slider Popup */}
                             {showVolume && (
                                 <div
-                                    className="absolute bottom-full right-0 mb-2 p-3 bg-card border border-border rounded-xl shadow-lg z-50"
-                                    style={{ width: '40px', height: '130px' }}
+                                    className="absolute bottom-full right-0 pb-0 z-50"
                                 >
-                                    <div className="w-full flex flex-col items-center h-full">
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="100"
-                                            value={isMuted ? 0 : volume}
-                                            onChange={handleVolumeChange}
-                                            className="volume-slider-vertical"
-                                            style={{
-                                                writingMode: 'vertical-lr',
-                                                direction: 'rtl',
-                                                width: '4px',
-                                                height: '80px',
-                                                margin: '0',
-                                                background: `linear-gradient(to top, rgb(var(--color-primary)) ${isMuted ? 0 : volume}%, rgb(var(--color-border)) ${isMuted ? 0 : volume}%)`,
-                                            }}
-                                        />
-                                        <span className="text-[10px] text-text-muted font-mono mt-2">{isMuted ? 0 : volume}</span>
+                                    {/* Invisible bridge to prevent hover gap */}
+                                    <div className="absolute bottom-0 left-0 w-full h-2 bg-transparent" />
+                                    <div
+                                        className="p-3 bg-card border border-border rounded-xl shadow-lg"
+                                        style={{ width: '40px', height: '130px' }}
+                                    >
+                                        <div className="w-full flex flex-col items-center h-full">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                value={isMuted ? 0 : volume}
+                                                onChange={handleVolumeChange}
+                                                className="volume-slider-vertical"
+                                                style={{
+                                                    writingMode: 'vertical-lr',
+                                                    direction: 'rtl',
+                                                    width: '4px',
+                                                    height: '80px',
+                                                    margin: '0',
+                                                    background: `linear-gradient(to top, rgb(var(--color-primary)) ${isMuted ? 0 : volume}%, rgb(var(--color-border)) ${isMuted ? 0 : volume}%)`,
+                                                }}
+                                            />
+                                            <span className="text-[10px] text-text-muted font-mono mt-2">{isMuted ? 0 : volume}</span>
+                                        </div>
                                     </div>
                                 </div>
                             )}

@@ -117,6 +117,8 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_history_played ON song_history(room_id, played_at DESC);
   `);
   try { db.exec(`ALTER TABLE rooms ADD COLUMN song_limit INTEGER DEFAULT 0`); } catch (e) { }
+  try { db.exec(`ALTER TABLE rooms ADD COLUMN room_password TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE room_members ADD COLUMN password_verified_at TEXT`); } catch (e) { }
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
