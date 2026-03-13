@@ -29,9 +29,9 @@ function emitQueueUpdate(req, roomSlug, roomId) {
 function saveToHistory(db, song) {
     const id = uuidv4();
     db.prepare(`
-    INSERT INTO song_history (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, song.room_id, song.youtube_id, song.title, song.thumbnail, song.duration, song.channel_name, song.added_by);
+    INSERT INTO song_history (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, source, spotify_uri, spotify_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, song.room_id, song.youtube_id, song.title, song.thumbnail, song.duration, song.channel_name, song.added_by, song.source || 'youtube', song.spotify_uri || null, song.spotify_id || null);
 }
 
 router.get('/:slug/songs', optionalAuth, (req, res) => {
@@ -43,7 +43,8 @@ router.get('/:slug/songs', optionalAuth, (req, res) => {
 
 router.post('/:slug/songs', verifyToken, async (req, res) => {
     try {
-        const { url, videoId: directVideoId, title: directTitle, force } = req.body;
+        const { url, videoId: directVideoId, title: directTitle, force, source: reqSource, spotifyUri, spotifyId, thumbnail: directThumbnail, artist } = req.body;
+        const source = reqSource || 'youtube';
         const db = getDb();
         const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
         if (!room) return res.status(404).json({ error: 'Room not found' });
@@ -56,7 +57,20 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
         }
 
         let metadata;
-        if (directVideoId) {
+
+        if (source === 'spotify') {
+            // Spotify source — no YouTube matching needed
+            if (!spotifyUri || !spotifyId) return res.status(400).json({ error: 'spotifyUri and spotifyId required for Spotify source' });
+            const songTitle = directTitle || 'Spotify Track';
+            const displayTitle = artist ? `${artist} — ${songTitle}` : songTitle;
+            metadata = {
+                videoId: spotifyId, // Use spotifyId as the unique ID column
+                title: displayTitle,
+                thumbnail: directThumbnail || '',
+                duration: 0,
+                channelName: artist || 'Spotify',
+            };
+        } else if (directVideoId) {
             metadata = { videoId: directVideoId, title: directTitle || `YouTube Video (${directVideoId})`, thumbnail: `https://img.youtube.com/vi/${directVideoId}/hqdefault.jpg`, duration: 0, channelName: 'Unknown' };
             fetchVideoMetadata(directVideoId).then(full => {
                 if (full && full.title !== metadata.title) {
@@ -68,10 +82,11 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
             metadata = await fetchVideoMetadata(url);
             if (!metadata) return res.status(400).json({ error: 'Invalid YouTube URL or video not found' });
         } else {
-            return res.status(400).json({ error: 'YouTube URL or videoId is required' });
+            return res.status(400).json({ error: 'YouTube URL/videoId or Spotify track required' });
         }
 
-        const existing = db.prepare('SELECT id FROM songs WHERE room_id = ? AND youtube_id = ?').get(room.id, metadata.videoId);
+        // Check for duplicates (per source)
+        const existing = db.prepare('SELECT id FROM songs WHERE room_id = ? AND youtube_id = ? AND source = ?').get(room.id, metadata.videoId, source);
         if (existing && !force) return res.status(409).json({ error: 'This song is already in the queue', code: 'DUPLICATE_IN_QUEUE', existingSongId: existing.id });
         if (existing && force) return res.status(200).json({ message: 'Song already in queue', existing: true });
 
@@ -80,13 +95,16 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
         const position = (maxPos?.pos || 0) + 1;
 
         const id = uuidv4();
-        db.prepare(`INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, room.id, metadata.videoId, metadata.title, metadata.thumbnail, metadata.duration, metadata.channelName, req.user.userId, position);
+        db.prepare(`INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position, source, spotify_uri, spotify_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+            id, room.id, metadata.videoId, metadata.title, metadata.thumbnail, metadata.duration, metadata.channelName, req.user.userId, position,
+            source, spotifyUri || null, spotifyId || null
+        );
 
         const songCount = db.prepare('SELECT COUNT(*) as count FROM songs WHERE room_id = ?').get(room.id).count;
         if (songCount === 1) {
             db.prepare('UPDATE songs SET is_playing = 1 WHERE id = ?').run(id);
             const { playerStates } = await import('./player.js');
-            const stateObj = { videoId: metadata.videoId, state: 'playing', currentTime: 0, updatedAt: new Date().toISOString(), updatedBy: req.user.userId };
+            const stateObj = { videoId: metadata.videoId, source, spotifyUri, state: 'playing', currentTime: 0, updatedAt: new Date().toISOString(), updatedBy: req.user.userId };
             playerStates.set(req.params.slug, stateObj);
             const io = req.app.get('io');
             io.of(`/room/${req.params.slug}`).emit('player:sync', stateObj);
@@ -94,8 +112,8 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
 
         emitQueueUpdate(req, req.params.slug, room.id);
         const io = req.app.get('io');
-        io.of(`/room/${req.params.slug}`).emit('song:added', { title: metadata.title, addedBy: req.user.displayName, thumbnail: metadata.thumbnail });
-        logActivity(db, room.id, req.user.userId, 'song_add', { songTitle: metadata.title });
+        io.of(`/room/${req.params.slug}`).emit('song:added', { title: metadata.title, addedBy: req.user.displayName, thumbnail: metadata.thumbnail, source });
+        logActivity(db, room.id, req.user.userId, 'song_add', { songTitle: metadata.title, source });
 
         const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(id);
         res.status(201).json({ song, wasInHistory: !!inHistory });

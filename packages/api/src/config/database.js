@@ -142,4 +142,26 @@ function runMigrations() {
     );
     CREATE INDEX IF NOT EXISTS idx_activity_room ON activity_log(room_id, created_at DESC);
   `);
+  // Dual-source support: add source/spotify columns to songs & history
+  try { db.exec(`ALTER TABLE songs ADD COLUMN source TEXT DEFAULT 'youtube'`); } catch (e) { }
+  try { db.exec(`ALTER TABLE songs ADD COLUMN spotify_uri TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE songs ADD COLUMN spotify_id TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE song_history ADD COLUMN source TEXT DEFAULT 'youtube'`); } catch (e) { }
+  try { db.exec(`ALTER TABLE song_history ADD COLUMN spotify_uri TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE song_history ADD COLUMN spotify_id TEXT`); } catch (e) { }
+
+  // Spotify integration
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS spotify_connections (
+      user_id TEXT PRIMARY KEY,
+      spotify_id TEXT NOT NULL,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      display_name TEXT,
+      avatar TEXT,
+      connected_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
 }

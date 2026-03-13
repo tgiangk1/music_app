@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import SpotifyBrowser from './SpotifyBrowser';
 
 export default function SearchAddSong({ onAdd, slug, songs = [] }) {
     const [mode, setMode] = useState('search'); // 'search' | 'url'
@@ -91,6 +92,7 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                 {[
                     { key: 'search', icon: '🔍', label: 'Search' },
                     { key: 'url', icon: '🔗', label: 'URL' },
+                    { key: 'spotify', icon: '🎵', label: 'Spotify' },
                 ].map(tab => (
                     <button
                         key={tab.key}
@@ -201,6 +203,11 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                         {isAdding === 'url' ? 'Adding...' : 'Add'}
                     </button>
                 </form>
+            )}
+
+            {/* Spotify mode */}
+            {mode === 'spotify' && (
+                <SpotifyBrowser onAdd={onAdd} songs={songs} slug={slug} />
             )}
         </div>
     );

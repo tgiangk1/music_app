@@ -308,16 +308,17 @@ export default function Room() {
                                     className="flex items-center gap-2 p-1 rounded-lg hover:bg-card-hover transition-colors"
                                 >
                                     <img
-                                        src={user?.avatar}
-                                        alt={user?.display_name}
+                                        src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.display_name || user?.displayName || 'U')}&background=6c5ce7&color=fff&size=32`}
+                                        alt={user?.display_name || user?.displayName}
                                         className="w-7 h-7 rounded-full ring-2 ring-border"
                                         referrerPolicy="no-referrer"
+                                        onError={(e) => { e.target.onerror = null; e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.display_name || user?.displayName || 'U')}&background=6c5ce7&color=fff&size=32`; }}
                                     />
                                 </button>
                                 {showProfileMenu && (
                                     <div className="absolute right-0 top-full mt-2 w-56 glass-card p-2 shadow-glow-lg animate-slide-up z-50">
                                         <div className="flex items-center gap-3 p-3 border-b border-border mb-2">
-                                            <img src={user?.avatar} alt="" className="w-9 h-9 rounded-full" referrerPolicy="no-referrer" />
+                                            <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.display_name || user?.displayName || 'U')}&background=6c5ce7&color=fff&size=36`} alt="" className="w-9 h-9 rounded-full" referrerPolicy="no-referrer" onError={(e) => { e.target.onerror = null; e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.display_name || user?.displayName || 'U')}&background=6c5ce7&color=fff&size=36`; }} />
                                             <div className="min-w-0">
                                                 <p className="text-sm font-medium truncate">{user?.display_name}</p>
                                                 <p className="text-[10px] text-text-muted truncate">{user?.email}</p>
@@ -370,6 +371,8 @@ export default function Room() {
                                 currentSong={currentSong}
                                 isRoomOwner={isRoomOwner}
                                 repeatMode={repeatMode}
+                                source={currentSong?.source || 'youtube'}
+                                spotifyUri={currentSong?.spotify_uri}
                                 emitPlayerSync={emitPlayerSync}
                                 emitPlayerSkip={emitPlayerSkip}
                                 emitPlayerEnded={emitPlayerEnded}

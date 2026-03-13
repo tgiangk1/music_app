@@ -62,6 +62,7 @@ export const useAuthStore = create(
         {
             name: 'jukebox-auth',
             partialize: (state) => ({
+                user: state.user,
                 accessToken: state.accessToken,
                 refreshToken: state.refreshToken,
             }),

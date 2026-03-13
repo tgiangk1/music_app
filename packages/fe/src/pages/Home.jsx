@@ -62,9 +62,10 @@ export default function Home() {
 
                         <div className="flex items-center gap-3">
                             <img
-                                src={user?.avatar}
+                                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'U')}&background=random&size=32`}
                                 alt={user?.displayName}
                                 className="w-8 h-8 rounded-full border border-border"
+                                referrerPolicy="no-referrer"
                             />
                             <span className="text-sm text-text-secondary hidden sm:inline">{user?.displayName}</span>
                         </div>
