@@ -26,7 +26,22 @@ async function _fetchFromYoutube(videoId) {
         const result = await ytSearch.GetVideoDetails(videoId);
         if (!result || !result.title) return _fallbackMetadata(videoId);
         let duration = 0;
-        if (result.lengthSeconds) duration = parseInt(result.lengthSeconds);
+        // Try multiple sources for duration
+        if (result.lengthSeconds) {
+            duration = parseInt(result.lengthSeconds);
+        } else if (result.length?.simpleText) {
+            // Parse "MM:SS" or "H:MM:SS" format
+            const parts = result.length.simpleText.split(':').map(Number);
+            if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) duration = parts[0] * 60 + parts[1];
+        } else if (result.length?.accessibility?.accessibilityData?.label) {
+            // Parse "X minutes, Y seconds" format
+            const label = result.length.accessibility.accessibilityData.label;
+            const mins = label.match(/(\d+)\s*minute/)?.[1] || 0;
+            const secs = label.match(/(\d+)\s*second/)?.[1] || 0;
+            const hrs = label.match(/(\d+)\s*hour/)?.[1] || 0;
+            duration = Number(hrs) * 3600 + Number(mins) * 60 + Number(secs);
+        }
         return { videoId, title: result.title, thumbnail: result.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, duration, channelName: result.channel || 'Unknown' };
     } catch (err) {
         console.error('YouTube metadata fetch error:', err.message);
