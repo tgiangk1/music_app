@@ -22,7 +22,7 @@ function isPasswordValid(member) {
 router.get('/', verifyToken, (req, res) => {
     const db = getDb();
     const userId = req.user.userId;
-    const rooms = db.prepare(`SELECT r.*, u.display_name as creator_name, (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as member_count FROM rooms r LEFT JOIN users u ON r.created_by = u.id WHERE r.is_public = 1 OR r.room_password IS NOT NULL OR r.id IN (SELECT room_id FROM room_members WHERE user_id = ?) OR r.created_by = ? ORDER BY r.created_at DESC`).all(userId, userId);
+    const rooms = db.prepare(`SELECT r.*, u.display_name as creator_name, (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as member_count FROM rooms r LEFT JOIN users u ON r.created_by = u.id ORDER BY r.created_at DESC`).all();
 
     const safeRooms = rooms.map(({ room_password, ...room }) => {
         const isOwner = room.created_by === userId;
@@ -45,14 +45,16 @@ router.get('/', verifyToken, (req, res) => {
 
 // Create room
 router.post('/', verifyToken, (req, res) => {
-    const { name, description, isPublic = true, coverColor = '#8b5cf6', password } = req.body;
+    const { name, description, isPublic = true, coverColor = 'rgb(var(--color-primary))', password } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Room name is required' });
+    const roomPassword = password && password.trim() ? password.trim() : null;
+    // Private rooms MUST have a password
+    if (!isPublic && !roomPassword) return res.status(400).json({ error: 'Private rooms require a password' });
     const db = getDb();
     const id = uuidv4();
     let slug = slugify(name);
     const existing = db.prepare('SELECT id FROM rooms WHERE slug = ?').get(slug);
     if (existing) slug = `${slug}-${id.slice(0, 6)}`;
-    const roomPassword = password && password.trim() ? password.trim() : null;
     db.prepare(`INSERT INTO rooms (id, name, slug, description, cover_color, is_public, room_password, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, name.trim(), slug, description || null, coverColor, isPublic ? 1 : 0, roomPassword, req.user.userId);
     db.prepare('INSERT INTO room_members (room_id, user_id) VALUES (?, ?)').run(id, req.user.userId);
     const room = db.prepare('SELECT * FROM rooms WHERE id = ?').get(id);
@@ -66,12 +68,7 @@ router.get('/:slug', optionalAuth, (req, res) => {
     const room = db.prepare(`SELECT r.*, u.display_name as creator_name FROM rooms r LEFT JOIN users u ON r.created_by = u.id WHERE r.slug = ?`).get(req.params.slug);
     if (!room) return res.status(404).json({ error: 'Room not found' });
 
-    // Check access for private rooms (no password)
-    if (!room.is_public && !room.room_password) {
-        if (!req.user) return res.status(403).json({ error: 'Login required to access private rooms' });
-        const isMember = db.prepare('SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?').get(room.id, req.user.userId);
-        if (!isMember && room.created_by !== req.user.userId && req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied to this private room' });
-    }
+    // Private rooms always have a password — access controlled via password flow below
 
     // Check access for password-protected rooms (10-min expiry)
     if (room.room_password) {
@@ -132,6 +129,10 @@ router.patch('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     if (coverColor !== undefined) updates.cover_color = coverColor;
     if (songLimit !== undefined) updates.song_limit = Math.max(0, parseInt(songLimit) || 0);
     if (password !== undefined) updates.room_password = password && password.trim() ? password.trim() : null;
+    // Private rooms MUST have a password
+    const finalIsPublic = updates.is_public !== undefined ? updates.is_public : room.is_public;
+    const finalPassword = updates.room_password !== undefined ? updates.room_password : room.room_password;
+    if (!finalIsPublic && !finalPassword) return res.status(400).json({ error: 'Private rooms require a password' });
     if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update' });
     const db = getDb();
     const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');

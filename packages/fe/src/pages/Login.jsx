@@ -14,10 +14,10 @@ export default function Login() {
                 <div className="absolute -bottom-20 left-1/3 w-72 h-72 bg-primary/5 rounded-full blur-[80px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
             </div>
 
-            <div className="glass-card p-10 w-full max-w-md relative z-10 animate-slide-up">
+            <div className="glass-card p-10 w-full max-w-md relative z-10 animate-fade-in">
                 {/* Logo / Brand */}
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/20 mb-6 shadow-glow">
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/20 mb-6">
                         <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
                         </svg>

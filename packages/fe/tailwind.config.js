@@ -11,11 +11,9 @@ export default {
                 surface: 'rgb(var(--color-surface) / <alpha-value>)',
                 card: 'rgb(var(--color-card) / <alpha-value>)',
                 'card-hover': 'rgb(var(--color-card-hover) / <alpha-value>)',
-                border: 'rgb(var(--color-border) / <alpha-value>)',
-                'border-glow': 'rgb(var(--color-border-glow) / 0.25)',
+                border: 'rgb(var(--color-border) / 0.08)',
                 primary: 'rgb(var(--color-primary) / <alpha-value>)',
                 'primary-hover': 'rgb(var(--color-primary-hover) / <alpha-value>)',
-                'primary-glow': 'rgb(var(--color-primary) / 0.19)',
                 accent: 'rgb(var(--color-accent) / <alpha-value>)',
                 'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
                 'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
@@ -24,21 +22,18 @@ export default {
                 danger: 'rgb(var(--color-danger) / <alpha-value>)',
                 warning: 'rgb(var(--color-warning) / <alpha-value>)',
                 'badge-admin': 'rgb(var(--color-warning) / <alpha-value>)',
-                'badge-member': '#6b7280',
+                'badge-member': '#6b6560',
             },
             fontFamily: {
                 display: ['Syne', 'sans-serif'],
                 body: ['DM Sans', 'sans-serif'],
-            },
-            boxShadow: {
-                'glow': '0 0 0 1px rgb(var(--color-primary) / 0.25), 0 0 20px rgb(var(--color-primary) / 0.12)',
-                'glow-lg': '0 0 0 1px rgb(var(--color-primary) / 0.35), 0 0 40px rgb(var(--color-primary) / 0.2)',
+                mono: ['JetBrains Mono', 'monospace'],
             },
             animation: {
                 'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                'slide-up': 'slideUp 0.3s ease-out',
+                'slide-up': 'slideUp 0.2s ease-out',
                 'slide-in': 'slideIn 0.2s ease-out',
-                'fade-in': 'fadeIn 0.3s ease-out',
+                'fade-in': 'fadeIn 0.2s ease-out',
             },
             keyframes: {
                 slideUp: {
