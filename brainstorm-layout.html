@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎧 Room Layout — Lo-fi Music Room</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Chosen palette: Vinyl bar 2am */
+        :root {
+            --base: #181614;
+            --surface: #211e1a;
+            --card: #282420;
+            --card-hover: #302c26;
+            --border: rgba(200, 168, 124, 0.08);
+            --border-subtle: rgba(200, 168, 124, 0.04);
+            --primary: #c8a87c;
+            --accent: #8aad7c;
+            --text: #e8e0d4;
+            --text-sec: #a09888;
+            --muted: #6b6560;
+            --danger: #c47a6a;
+            --success: #8aad7c;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--base);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        /* Noise grain */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.025;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .page-header h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.6rem;
+            margin-bottom: 0.4rem;
+            color: var(--text);
+        }
+
+        .page-header p {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .layouts {
+            display: flex;
+            flex-direction: column;
+            gap: 3rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .layout-option {
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            overflow: hidden;
+            background: var(--surface);
+            cursor: pointer;
+            transition: border-color 0.3s, transform 0.2s;
+        }
+
+        .layout-option:hover {
+            border-color: rgba(200, 168, 124, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .layout-option.selected {
+            border-color: var(--primary);
+            box-shadow: 0 0 40px rgba(200, 168, 124, 0.06);
+        }
+
+        .layout-label {
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--card);
+        }
+
+        .layout-label .letter {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: var(--primary);
+            color: var(--base);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+
+        .layout-label h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.05rem;
+        }
+
+        .layout-label .desc {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .mockup-container {
+            padding: 1.5rem;
+        }
+
+        /* ===== SHARED ROOM PARTS ===== */
+        .room-header {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.65rem 1rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            font-size: 0.8rem;
+        }
+
+        .room-header .back {
+            color: var(--muted);
+        }
+
+        .room-header .room-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: rgba(200, 168, 124, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+        }
+
+        .room-header .room-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .room-header .online {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--muted);
+        }
+
+        .room-header .online .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        .room-header .spacer {
+            flex: 1;
+        }
+
+        .room-header .avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--card-hover);
+            border: 1px solid var(--border);
+        }
+
+        .player-block {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .player-block::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0.02;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+        }
+
+        .player-block .vinyl {
+            font-size: 2.5rem;
+            animation: spin 3s linear infinite;
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .player-block .now-playing {
+            position: absolute;
+            bottom: 10px;
+            left: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--muted);
+            z-index: 1;
+        }
+
+        .player-block .controls {
+            position: absolute;
+            bottom: 10px;
+            right: 12px;
+            display: flex;
+            gap: 6px;
+            z-index: 1;
+        }
+
+        .player-block .ctrl-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: rgba(200, 168, 124, 0.08);
+            border: 1px solid var(--border);
+            color: var(--text-sec);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+        }
+
+        .add-song {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .add-song input {
+            flex: 1;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            color: var(--text);
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            outline: none;
+        }
+
+        .add-song input::placeholder {
+            color: var(--muted);
+        }
+
+        .add-song button {
+            background: var(--primary);
+            color: var(--base);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 2px;
+            background: rgba(200, 168, 124, 0.04);
+            border-radius: 8px;
+            padding: 3px;
+            margin-top: 0.75rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .tab.active {
+            background: var(--card);
+            color: var(--text);
+        }
+
+        .song-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.65rem;
+            background: var(--card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            margin-bottom: 4px;
+            font-size: 0.7rem;
+        }
+
+        .song-item .num {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            font-size: 0.6rem;
+            width: 16px;
+        }
+
+        .song-item .title {
+            color: var(--text-sec);
+            flex: 1;
+        }
+
+        .song-item .dur {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            font-size: 0.6rem;
+        }
+
+        .sidebar-block {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.75rem;
+        }
+
+        .sidebar-block h3 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-sec);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .member-row {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0;
+            font-size: 0.7rem;
+            color: var(--text-sec);
+        }
+
+        .member-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        .member-role {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.55rem;
+            color: var(--muted);
+            margin-left: auto;
+            padding: 1px 4px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .chat-msg {
+            padding: 0.35rem 0;
+            font-size: 0.65rem;
+        }
+
+        .chat-msg .name {
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .chat-msg .msg {
+            color: var(--text-sec);
+        }
+
+        .chat-msg .time {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            font-size: 0.55rem;
+            margin-left: 0.3rem;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .chat-input input {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.35rem 0.5rem;
+            color: var(--text);
+            font-size: 0.65rem;
+            outline: none;
+        }
+
+        /* ===== LAYOUT A: current style refined ===== */
+        .layout-a .room-body {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 1rem;
+        }
+
+        /* ===== LAYOUT B: wider sidebar + compact tabs ===== */
+        .layout-b .room-body {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 1rem;
+        }
+
+        .layout-b .sidebar-tabs {
+            display: flex;
+            gap: 2px;
+            background: rgba(200, 168, 124, 0.04);
+            border-radius: 8px;
+            padding: 3px;
+            margin-bottom: 0.6rem;
+        }
+
+        .layout-b .sidebar-tab {
+            flex: 1;
+            text-align: center;
+            padding: 0.35rem 0.4rem;
+            border-radius: 6px;
+            font-size: 0.65rem;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .layout-b .sidebar-tab.active {
+            background: var(--card);
+            color: var(--text);
+        }
+
+        /* ===== LAYOUT C: bottom player + split content ===== */
+        .layout-c .room-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .layout-c .player-block {
+            height: 80px;
+        }
+
+        .layout-c .bottom-player {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 1rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        .layout-c .bottom-player .vinyl {
+            font-size: 1.5rem;
+        }
+
+        .layout-c .bottom-player .track-info {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-sec);
+            flex: 1;
+        }
+
+        .layout-c .bottom-player .track-info .artist {
+            font-size: 0.6rem;
+            color: var(--muted);
+        }
+
+        /* Selection */
+        .selected-indicator {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(33, 30, 26, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(200, 168, 124, 0.15);
+            padding: 0.75rem 1.5rem;
+            border-radius: 1rem;
+            font-size: 0.85rem;
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            z-index: 100;
+            color: var(--text);
+        }
+
+        .selected-indicator.show {
+            display: flex;
+        }
+
+        .selected-indicator .check {
+            color: var(--accent);
+        }
+
+        .pros-label {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.75rem;
+            padding: 0 0.25rem;
+        }
+
+        .pros-label span {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+
+        .pros-label span.pro {
+            color: var(--accent);
+            border-color: rgba(138, 173, 124, 0.15);
+        }
+
+        .pros-label span.con {
+            color: var(--danger);
+            border-color: rgba(196, 122, 106, 0.15);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-header">
+        <h1>🎧 Room Layout — Vinyl Bar 2AM</h1>
+        <p>Click layout anh thích. Palette đã lock: warm amber + forest accent.</p>
+    </div>
+
+    <div class="layouts">
+
+        <!-- ===== LAYOUT A: Classic Refined ===== -->
+        <div class="layout-option layout-a" onclick="selectLayout(this, 'A')">
+            <div class="layout-label">
+                <div class="letter">A</div>
+                <h2>Classic Refined</h2>
+                <div class="desc">giữ 2-col hiện tại, clean up effects</div>
+            </div>
+            <div class="mockup-container">
+                <div class="room-header">
+                    <span class="back">←</span>
+                    <div class="room-icon">🎵</div>
+                    <span class="room-name">Chill Room</span>
+                    <div class="online">
+                        <div class="dot"></div> 5 online
+                    </div>
+                    <span class="spacer"></span>
+                    <div class="avatar"></div>
+                </div>
+
+                <div class="room-body">
+                    <div class="left">
+                        <div class="player-block">
+                            <div class="vinyl">💿</div>
+                            <div class="now-playing">♪ Lofi Study Beats — chill.corp</div>
+                            <div class="controls">
+                                <div class="ctrl-btn">⏮</div>
+                                <div class="ctrl-btn">⏸</div>
+                                <div class="ctrl-btn">⏭</div>
+                            </div>
+                        </div>
+
+                        <div class="add-song">
+                            <input placeholder="paste youtube link or search..." />
+                            <button>+ Add</button>
+                        </div>
+
+                        <div class="tab-bar">
+                            <div class="tab active">Queue (3)</div>
+                            <div class="tab">History</div>
+                        </div>
+
+                        <div class="song-item"><span class="num">01</span><span class="title">Midnight Rain — lofi
+                                girl</span><span class="dur">3:42</span></div>
+                        <div class="song-item"><span class="num">02</span><span class="title">Rainy Café —
+                                kupla</span><span class="dur">4:15</span></div>
+                        <div class="song-item"><span class="num">03</span><span class="title">Late Night Drive —
+                                sleepdealer</span><span class="dur">2:58</span></div>
+                    </div>
+
+                    <div class="right" style="display:flex;flex-direction:column;gap:0.75rem;">
+                        <div class="sidebar-block">
+                            <h3>👥 Members</h3>
+                            <div class="member-row">
+                                <div class="member-dot"></div> dv <span class="member-role">host</span>
+                            </div>
+                            <div class="member-row">
+                                <div class="member-dot"></div> minh <span class="member-role">member</span>
+                            </div>
+                            <div class="member-row">
+                                <div class="member-dot"></div> tuan
+                            </div>
+                        </div>
+
+                        <div class="sidebar-block" style="flex:1;">
+                            <h3>💬 Chat</h3>
+                            <div class="chat-msg"><span class="name">minh</span> <span class="msg">bài này hay
+                                    ghê</span> <span class="time">2:04am</span></div>
+                            <div class="chat-msg"><span class="name">dv</span> <span class="msg">thêm bài nào đi</span>
+                                <span class="time">2:05am</span></div>
+                            <div class="chat-input"><input placeholder="type something..." /></div>
+                        </div>
+
+                        <div class="sidebar-block">
+                            <h3>📊 Stats</h3>
+                            <div
+                                style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--muted);display:flex;gap:1rem;">
+                                <span>12 songs played</span>
+                                <span>3h 24m</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="pros-label">
+                <span class="pro">✓ ít thay đổi</span>
+                <span class="pro">✓ quen thuộc</span>
+                <span class="pro">✓ stable</span>
+                <span class="con">✗ sidebar có thể chật</span>
+                <span class="con">✗ scroll dài</span>
+            </div>
+        </div>
+
+        <!-- ===== LAYOUT B: Tabbed Sidebar ===== -->
+        <div class="layout-option layout-b" onclick="selectLayout(this, 'B')">
+            <div class="layout-label">
+                <div class="letter">B</div>
+                <h2>Tabbed Sidebar</h2>
+                <div class="desc">sidebar dùng tabs → compact, không scroll</div>
+            </div>
+            <div class="mockup-container">
+                <div class="room-header">
+                    <span class="back">←</span>
+                    <div class="room-icon">🎵</div>
+                    <span class="room-name">Chill Room</span>
+                    <div class="online">
+                        <div class="dot"></div> 5 online
+                    </div>
+                    <span class="spacer"></span>
+                    <div class="avatar"></div>
+                </div>
+
+                <div class="room-body">
+                    <div class="left">
+                        <div class="player-block">
+                            <div class="vinyl">💿</div>
+                            <div class="now-playing">♪ Lofi Study Beats — chill.corp</div>
+                            <div class="controls">
+                                <div class="ctrl-btn">⏮</div>
+                                <div class="ctrl-btn">⏸</div>
+                                <div class="ctrl-btn">⏭</div>
+                            </div>
+                        </div>
+
+                        <div class="add-song">
+                            <input placeholder="paste youtube link or search..." />
+                            <button>+ Add</button>
+                        </div>
+
+                        <div class="tab-bar">
+                            <div class="tab active">Queue (3)</div>
+                            <div class="tab">History</div>
+                        </div>
+
+                        <div class="song-item"><span class="num">01</span><span class="title">Midnight Rain — lofi
+                                girl</span><span class="dur">3:42</span></div>
+                        <div class="song-item"><span class="num">02</span><span class="title">Rainy Café —
+                                kupla</span><span class="dur">4:15</span></div>
+                        <div class="song-item"><span class="num">03</span><span class="title">Late Night Drive —
+                                sleepdealer</span><span class="dur">2:58</span></div>
+                    </div>
+
+                    <div class="right">
+                        <div class="sidebar-tabs">
+                            <div class="sidebar-tab active">💬 Chat</div>
+                            <div class="sidebar-tab">👥 5</div>
+                            <div class="sidebar-tab">🎵 Lyrics</div>
+                            <div class="sidebar-tab">📊</div>
+                        </div>
+
+                        <div class="sidebar-block" style="min-height:220px;">
+                            <div class="chat-msg"><span class="name">minh</span> <span class="msg">bài này hay
+                                    ghê</span> <span class="time">2:04am</span></div>
+                            <div class="chat-msg"><span class="name">dv</span> <span class="msg">thêm bài nào đi</span>
+                                <span class="time">2:05am</span></div>
+                            <div class="chat-msg"><span class="name">tuan</span> <span class="msg">🔥🔥🔥</span> <span
+                                    class="time">2:05am</span></div>
+                            <div class="chat-msg"><span class="name">minh</span> <span class="msg">vibe chill quá</span>
+                                <span class="time">2:06am</span></div>
+                            <div style="height:2rem"></div>
+                            <div class="chat-input"><input placeholder="type something..." /></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="pros-label">
+                <span class="pro">✓ sidebar gọn, 1 view</span>
+                <span class="pro">✓ chat lớn hơn</span>
+                <span class="pro">✓ ✓ recommended</span>
+                <span class="con">✗ hidden content (tabs)</span>
+            </div>
+        </div>
+
+        <!-- ===== LAYOUT C: Sticky Bottom Player ===== -->
+        <div class="layout-option layout-c" onclick="selectLayout(this, 'C')">
+            <div class="layout-label">
+                <div class="letter">C</div>
+                <h2>Bottom Player + Split</h2>
+                <div class="desc">player dính dưới, content chia đôi</div>
+            </div>
+            <div class="mockup-container">
+                <div class="room-header">
+                    <span class="back">←</span>
+                    <div class="room-icon">🎵</div>
+                    <span class="room-name">Chill Room</span>
+                    <div class="online">
+                        <div class="dot"></div> 5 online
+                    </div>
+                    <span class="spacer"></span>
+                    <div class="avatar"></div>
+                </div>
+
+                <div class="room-body">
+                    <div class="left">
+                        <div class="add-song" style="margin-top:0">
+                            <input placeholder="paste youtube link or search..." />
+                            <button>+ Add</button>
+                        </div>
+
+                        <div class="tab-bar">
+                            <div class="tab active">Queue (3)</div>
+                            <div class="tab">History</div>
+                        </div>
+
+                        <div class="song-item"><span class="num">01</span><span class="title">Midnight Rain — lofi
+                                girl</span><span class="dur">3:42</span></div>
+                        <div class="song-item"><span class="num">02</span><span class="title">Rainy Café —
+                                kupla</span><span class="dur">4:15</span></div>
+                        <div class="song-item"><span class="num">03</span><span class="title">Late Night Drive —
+                                sleepdealer</span><span class="dur">2:58</span></div>
+                    </div>
+
+                    <div class="right" style="display:flex;flex-direction:column;gap:0.75rem;">
+                        <div class="sidebar-block">
+                            <h3>👥 Members</h3>
+                            <div class="member-row">
+                                <div class="member-dot"></div> dv <span class="member-role">host</span>
+                            </div>
+                            <div class="member-row">
+                                <div class="member-dot"></div> minh
+                            </div>
+                            <div class="member-row">
+                                <div class="member-dot"></div> tuan
+                            </div>
+                        </div>
+
+                        <div class="sidebar-block" style="flex:1;">
+                            <h3>💬 Chat</h3>
+                            <div class="chat-msg"><span class="name">minh</span> <span class="msg">bài này hay
+                                    ghê</span> <span class="time">2:04am</span></div>
+                            <div class="chat-msg"><span class="name">dv</span> <span class="msg">thêm bài nào đi</span>
+                                <span class="time">2:05am</span></div>
+                            <div class="chat-input"><input placeholder="type something..." /></div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom sticky player -->
+                    <div class="bottom-player">
+                        <div class="vinyl" style="animation:spin 3s linear infinite;">💿</div>
+                        <div class="track-info">
+                            <div>Lofi Study Beats</div>
+                            <div class="artist">chill.corp · 1:24 / 3:42</div>
+                        </div>
+                        <div class="controls" style="position:static;">
+                            <div class="ctrl-btn">⏮</div>
+                            <div class="ctrl-btn">⏸</div>
+                            <div class="ctrl-btn">⏭</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="pros-label">
+                <span class="pro">✓ player luôn visible</span>
+                <span class="pro">✓ equal content space</span>
+                <span class="con">✗ mất embedded video</span>
+                <span class="con">✗ khác biệt lớn</span>
+                <span class="con">✗ phức tạp hơn</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="selected-indicator" id="indicator">
+        <span class="check">✓</span>
+        <span id="indicator-text">Selected: —</span>
+    </div>
+
+    <script>
+        function selectLayout(el, name) {
+            document.querySelectorAll('.layout-option').forEach(p => p.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('indicator').classList.add('show');
+            document.getElementById('indicator-text').textContent = 'Selected: Layout ' + name + ' — ' + el.querySelector('h2').textContent;
+        }
+    </script>
+</body>
+
+</html>
