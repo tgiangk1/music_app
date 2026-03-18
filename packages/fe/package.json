@@ -1,5 +1,5 @@
-{
-    "name": "@antigravity/fe",
+﻿{
+    "name": "@soundden/fe",
     "private": true,
     "version": "1.0.0",
     "type": "module",
@@ -33,3 +33,4 @@
         "vite": "^6.0.7"
     }
 }
+

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+﻿import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -107,7 +107,7 @@ export default function Room() {
             .catch(() => { });
     }, [slug]);
 
-    // Mini Player — Intersection Observer
+    // Mini Player  Intersection Observer
     useEffect(() => {
         const el = playerSectionRef.current;
         if (!el) return;
@@ -167,7 +167,7 @@ export default function Room() {
         prevQueueLenRef.current = songs.length;
     }, [songs, notify, user?.id]);
 
-    // Sound notification — Web Audio "ding" when someone else adds a song
+    // Sound notification  Web Audio "ding" when someone else adds a song
     const playNotificationSound = () => {
         if (!document.hidden) return; // only when tab is inactive
         if (localStorage.getItem('jukebox_sound_notification') === 'off') return;
@@ -187,22 +187,22 @@ export default function Room() {
         } catch { }
     };
 
-    // Now Playing — dynamic tab title
+    // Now Playing  dynamic tab title
     useEffect(() => {
         if (currentSong?.title) {
-            document.title = `🎵 ${currentSong.title} — ${room?.name || 'Jukebox'}`;
+            document.title = `🎵 ${currentSong.title}  ${room?.name || 'SoundDen'}`;
         } else {
-            document.title = room?.name ? `${room.name} — Antigravity Jukebox` : 'Antigravity Jukebox';
+            document.title = room?.name ? `${room.name}  SoundDen` : 'SoundDen';
         }
-        return () => { document.title = 'Antigravity Jukebox'; };
+        return () => { document.title = 'SoundDen'; };
     }, [currentSong?.title, room?.name]);
 
-    // Now Playing toast — show when a new song starts playing
+    // Now Playing toast  show when a new song starts playing
     const prevSongIdRef = useRef(null);
     useEffect(() => {
         if (!currentSong) return;
         if (prevSongIdRef.current === null) {
-            // First load — remember but don't toast
+            // First load  remember but don't toast
             prevSongIdRef.current = currentSong.id;
             return;
         }
@@ -230,7 +230,7 @@ export default function Room() {
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: `${room?.name} — Antigravity Jukebox`,
+                    title: `${room?.name}  SoundDen`,
                     text: `Join my music room: ${room?.name}`,
                     url: roomUrl,
                 });
@@ -351,7 +351,7 @@ export default function Room() {
                             <kbd className="text-xs font-mono bg-card px-1.5 py-0.5 rounded border border-border">?</kbd>
                         </button>
 
-                        {/* Sidebar toggle — visible on tablet/mobile only */}
+                        {/* Sidebar toggle  visible on tablet/mobile only */}
                         <button
                             onClick={() => setShowSidebar(prev => !prev)}
                             className={`xl:hidden p-2 rounded-lg transition-colors ${showSidebar ? 'bg-primary/20 text-primary' : 'hover:bg-card-hover text-text-muted'
@@ -435,7 +435,7 @@ export default function Room() {
                 <div className="flex flex-col xl:flex-row gap-6">
                     {/* Left: Player + Queue */}
                     <div className={`flex-1 min-w-0 xl:min-w-[600px] space-y-6 ${mobileTab !== 'player' && mobileTab !== 'queue' ? 'hidden md:block' : ''}`}>
-                        {/* Player with emoji overlay — 16:9 ratio */}
+                        {/* Player with emoji overlay  16:9 ratio */}
                         <div ref={playerSectionRef} id="main-player" className="relative aspect-video bg-base rounded-2xl overflow-hidden">
                             <PlayerComponent
                                 videoId={playerState.videoId}
@@ -452,7 +452,7 @@ export default function Room() {
                             {!isGuest && <EmojiOverlay socket={socket} />}
                         </div>
 
-                        {/* Add Song — hidden for guests, hidden on mobile queue-only view */}
+                        {/* Add Song  hidden for guests, hidden on mobile queue-only view */}
                         {!isGuest && <div className={mobileTab === 'queue' ? 'hidden md:block' : ''}><AddSong onAdd={addSong} slug={slug} songs={songs} /></div>}
 
                         {/* Crossfade indicator */}
@@ -465,7 +465,7 @@ export default function Room() {
                             />
                         )}
 
-                        {/* Radio Mode panel — only visible when enabled */}
+                        {/* Radio Mode panel  only visible when enabled */}
                         {!isGuest && radioModeEnabled && (
                             <RadioMode
                                 slug={slug}
@@ -515,7 +515,7 @@ export default function Room() {
                         </div>
                     </div>
 
-                    {/* Right Sidebar — Tabbed */}
+                    {/* Right Sidebar  Tabbed */}
                     {/* Desktop: always visible, fixed 360px */}
                     {/* Mobile: controlled by mobileTab (chat/members) */}
                     <div className={`
@@ -538,7 +538,7 @@ export default function Room() {
                                 : ''
                             }
                         `}>
-                            {/* Close button — mobile/tablet only */}
+                            {/* Close button  mobile/tablet only */}
                             {showSidebar && (
                                 <button
                                     onClick={() => setShowSidebar(false)}
@@ -550,7 +550,7 @@ export default function Room() {
                                 </button>
                             )}
 
-                            {/* Tab Bar — hidden on mobile (bottom nav handles it) */}
+                            {/* Tab Bar  hidden on mobile (bottom nav handles it) */}
                             <div className="hidden md:flex gap-1 bg-surface rounded-xl p-1 mb-3">
                                 <button
                                     onClick={() => setSidebarTab('chat')}
@@ -575,7 +575,7 @@ export default function Room() {
                                 </button>
                             </div>
 
-                            {/* Tab Content — fill remaining height */}
+                            {/* Tab Content  fill remaining height */}
                             <div className="flex-1 min-h-0">
                                 {(sidebarTab === 'chat' || mobileTab === 'chat') && (
                                     !isGuest ? (
@@ -699,7 +699,7 @@ export default function Room() {
                                 <span className="text-lg">🎧</span>
                                 <p className="text-text-secondary text-sm truncate">
                                     <span className="font-medium text-text-primary">Listening as Guest</span>
-                                    {' — '} Login to add songs, chat, and more
+                                    {'  '} Login to add songs, chat, and more
                                 </p>
                             </div>
                             <a
@@ -806,7 +806,7 @@ function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
                                 )}
                             </button>
                         </div>
-                        <p className="text-xs text-text-muted mt-1">Password expires after 10 minutes — users will need to re-enter</p>
+                        <p className="text-xs text-text-muted mt-1">Password expires after 10 minutes  users will need to re-enter</p>
                     </div>
 
                     <div className="flex gap-2">
@@ -869,3 +869,4 @@ function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
         </div>
     );
 }
+

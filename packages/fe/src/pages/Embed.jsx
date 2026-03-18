@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket';
 import { useQueue } from '../hooks/useQueue';
@@ -100,10 +100,11 @@ export default function Embed() {
 
                 <div className="p-2 border-t border-surface-700/50 flex-shrink-0 bg-surface-800 text-center">
                     <a href={`${window.location.origin}/room/${room.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:text-primary-300">
-                        Open in Jukebox &rarr;
+                        Open in SoundDen &rarr;
                     </a>
                 </div>
             </div>
         </div>
     );
 }
+

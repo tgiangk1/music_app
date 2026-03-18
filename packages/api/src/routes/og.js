@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { getDb } from '../config/database.js';
 import { getIO } from '../services/socket.js';
 
@@ -36,7 +36,7 @@ router.get('/room/:slug', (req, res) => {
       } catch { }
     }
 
-    const title = `${room.name} — Antigravity Jukebox`;
+    const title = `${room.name} — SoundDen`;
     let description = room.description || `Collaborative music room`;
     if (nowPlaying) {
       description = `🎵 Now Playing: ${nowPlaying.title} | ${onlineCount} listener${onlineCount !== 1 ? 's' : ''}`;
@@ -53,7 +53,7 @@ router.get('/room/:slug', (req, res) => {
       description,
       image,
       url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/room/${room.slug}`,
-      siteName: 'Antigravity Jukebox',
+      siteName: 'SoundDen',
       roomName: room.name,
       roomIcon: room.room_icon || '🎵',
       genre: room.genre,

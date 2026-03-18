@@ -1,4 +1,4 @@
-import { getDb } from '../config/database.js';
+﻿import { getDb } from '../config/database.js';
 
 export async function notifySlackSongAdded(roomId, roomSlug, roomName, songTitle, addedBy, thumbnail, url) {
     const db = getDb();
@@ -33,7 +33,7 @@ export async function notifySlackSongAdded(roomId, roomSlug, roomName, songTitle
                         "type": "button",
                         "text": {
                             "type": "plain_text",
-                            "text": "Listen in Jukebox",
+                            "text": "Listen in SoundDen",
                             "emoji": true
                         },
                         "url": `${process.env.CLIENT_URL}/room/${roomSlug}`,
@@ -52,3 +52,4 @@ export async function notifySlackSongAdded(roomId, roomSlug, roomName, songTitle
         console.error('Slack webhook failed:', err.message);
     }
 }
+

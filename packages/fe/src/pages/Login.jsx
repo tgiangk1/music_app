@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+﻿const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function Login() {
     const handleGoogleLogin = () => {
@@ -23,7 +23,7 @@ export default function Login() {
                         </svg>
                     </div>
                     <h1 className="font-display text-3xl font-bold text-text-primary mb-2">
-                        Antigravity <span className="text-primary">Jukebox</span>
+                        Sound<span className="text-primary">Den</span>
                     </h1>
                     <p className="text-text-secondary text-sm">
                         Listen together with your team — real-time, synced, fun.

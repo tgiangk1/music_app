@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
@@ -82,7 +82,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`🎵 Antigravity Jukebox API running on port ${PORT}`);
+  console.log(`🎵 SoundDen API running on port ${PORT}`);
 
   // Background: backfill song_history duration=0
   (async () => {

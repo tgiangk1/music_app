@@ -1,5 +1,5 @@
-{
-    "name": "@antigravity/api",
+﻿{
+    "name": "@soundden/api",
     "version": "1.0.0",
     "private": true,
     "type": "module",
@@ -29,3 +29,4 @@
         "node": ">=20.0.0"
     }
 }
+
