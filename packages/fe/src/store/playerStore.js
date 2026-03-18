@@ -11,7 +11,7 @@ export const usePlayerStore = create((set) => ({
         videoId: playerState.videoId,
         state: playerState.state,
         currentTime: playerState.currentTime,
-        updatedAt: playerState.updatedAt,
+        updatedAt: Date.now(), // Use local timestamp for drift calculation
         updatedBy: playerState.updatedBy,
     }),
 

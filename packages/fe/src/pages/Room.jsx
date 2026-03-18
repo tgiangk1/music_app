@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -120,10 +120,11 @@ export default function Room() {
     }, [isLoading]);
 
     const isRoomOwner = room?.isOwner || room?.created_by === user?.id || isAdmin;
+    const canControl = isRoomOwner || room?.userRoomRole === 'dj' || room?.userRoomRole === 'admin';
 
     // Keyboard shortcuts
     const { showHelp, setShowHelp } = useKeyboardShortcuts({
-        isRoomOwner,
+        isRoomOwner: canControl,
         emitPlayerSync,
         emitPlayerSkip,
         videoId: playerState.videoId,
@@ -443,6 +444,7 @@ export default function Room() {
                                 currentTime={playerState.currentTime}
                                 currentSong={currentSong}
                                 isRoomOwner={isRoomOwner}
+                                canControl={canControl}
                                 repeatMode={repeatMode}
                                 emitPlayerSync={emitPlayerSync}
                                 emitPlayerSkip={emitPlayerSkip}

@@ -84,8 +84,18 @@ router.get('/:slug', optionalAuth, (req, res) => {
 
     const memberCount = db.prepare('SELECT COUNT(*) as count FROM room_members WHERE room_id = ?').get(room.id).count;
     const isOwner = req.user ? room.created_by === req.user.userId : false;
+    // Determine user's room role for player control permissions
+    let userRoomRole = 'listener';
+    if (req.user) {
+        if (isOwner || req.user.role === 'admin') {
+            userRoomRole = isOwner ? 'owner' : 'admin';
+        } else {
+            const membership = db.prepare('SELECT role FROM room_members WHERE room_id = ? AND user_id = ?').get(room.id, req.user.userId);
+            userRoomRole = membership?.role || 'member';
+        }
+    }
     const { room_password, ...safeRoom } = room;
-    res.json({ room: { ...safeRoom, memberCount, isOwner, has_password: !!room_password } });
+    res.json({ room: { ...safeRoom, memberCount, isOwner, userRoomRole, has_password: !!room_password } });
 });
 
 // Join room with password — set password_verified_at

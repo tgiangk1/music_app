@@ -10,6 +10,7 @@ export default function PlayerComponent({
     currentTime,
     currentSong,
     isRoomOwner,
+    canControl = false,
     repeatMode,
     emitPlayerSync,
     emitPlayerSkip,
@@ -19,6 +20,7 @@ export default function PlayerComponent({
         emitPlayerSync,
         emitPlayerEnded,
         isRoomOwner,
+        canControl,
         repeatMode,
     });
 
