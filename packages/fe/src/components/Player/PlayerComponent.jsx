@@ -58,7 +58,7 @@ export default function PlayerComponent({
     const [showVolume, setShowVolume] = useState(false);
 
     // Visualizer state
-    const [showVisualizer, setShowVisualizer] = useState(() => localStorage.getItem('jukebox_visualizer') !== 'off');
+    const [showVisualizer, setShowVisualizer] = useState(() => localStorage.getItem('jukebox_visualizer') === 'on');
     const [visualizerMode, setVisualizerMode] = useState(() => localStorage.getItem('jukebox_viz_mode') || 'bars');
     const [vizColorScheme, setVizColorScheme] = useState(() => localStorage.getItem('jukebox_viz_color') || 'neon');
 

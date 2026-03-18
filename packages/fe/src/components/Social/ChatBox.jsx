@@ -112,6 +112,9 @@ export default function ChatBox({ socket }) {
                                     referrerPolicy="no-referrer"
                                 />
                                 <div className={`max-w-[75%] ${isMe ? 'text-right' : ''}`}>
+                                    {!isMe && (
+                                        <p className="text-[11px] font-medium text-text-muted mb-0.5 truncate">{msg.user.displayName || msg.user.name || 'Unknown'}</p>
+                                    )}
                                     <div className={`inline-block px-3 py-2 rounded-2xl text-sm ${isMe
                                         ? 'bg-primary/20 text-text-primary rounded-tr-md'
                                         : 'bg-card text-text-primary rounded-tl-md'
