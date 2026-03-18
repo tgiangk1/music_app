@@ -64,3 +64,70 @@ export async function fetchPlaylistVideos(playlistUrl) {
         return results.items.filter(item => item.id).map(item => ({ videoId: item.id, title: item.title || `YouTube Video (${item.id})`, thumbnail: item.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`, duration: 0, channelName: item.channelTitle || 'Unknown' }));
     } catch (err) { console.error('YouTube playlist fetch error:', err.message); return null; }
 }
+
+// --- Smart Autoplay: fetch related videos ---
+const relatedCache = new Map();
+const RELATED_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+export async function fetchRelatedVideos(videoId, title, channelName, excludeIds = []) {
+    // Check cache first
+    const cacheKey = videoId;
+    const cached = relatedCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < RELATED_CACHE_TTL) {
+        return cached.data.filter(v => !excludeIds.includes(v.videoId));
+    }
+
+    try {
+        const ytSearch = await import('youtube-search-api');
+        let results = [];
+
+        // Strategy 1: Search by channel name + "music"
+        if (channelName && channelName !== 'Unknown') {
+            const channelResults = await ytSearch.GetListByKeyword(`${channelName} music`, false, 10);
+            if (channelResults?.items?.length) {
+                results.push(...channelResults.items.filter(i => i.type === 'video' && i.id !== videoId));
+            }
+        }
+
+        // Strategy 2: Search by song title (related songs)
+        if (title && results.length < 5) {
+            // Extract meaningful keywords from title (remove MV, Official, etc.)
+            const cleanTitle = title.replace(/\(.*?\)|\[.*?\]|official|mv|music video|lyric|lyrics|audio|hd|4k/gi, '').trim();
+            if (cleanTitle.length > 3) {
+                const titleResults = await ytSearch.GetListByKeyword(cleanTitle, false, 10);
+                if (titleResults?.items?.length) {
+                    results.push(...titleResults.items.filter(i => i.type === 'video' && i.id !== videoId));
+                }
+            }
+        }
+
+        // Deduplicate by videoId
+        const seen = new Set();
+        const unique = [];
+        for (const item of results) {
+            if (!seen.has(item.id)) {
+                seen.add(item.id);
+                unique.push({
+                    videoId: item.id,
+                    title: item.title,
+                    thumbnail: item.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`,
+                    duration: item.length?.simpleText || '0:00',
+                    channelName: item.channelTitle || 'Unknown'
+                });
+            }
+        }
+
+        // Cache results
+        relatedCache.set(cacheKey, { data: unique, ts: Date.now() });
+        if (relatedCache.size > 100) {
+            const oldest = relatedCache.keys().next().value;
+            relatedCache.delete(oldest);
+        }
+
+        return unique.filter(v => !excludeIds.includes(v.videoId));
+    } catch (err) {
+        console.error('Fetch related videos error:', err.message);
+        return [];
+    }
+}
+

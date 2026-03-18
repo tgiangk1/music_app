@@ -4,6 +4,7 @@ import { getDb } from '../config/database.js';
 import { playerStates } from '../routes/player.js';
 import { getRoomRole } from '../middlewares/role.js';
 import { v4 as uuidv4 } from 'uuid';
+import { fetchRelatedVideos, fetchVideoMetadata } from './youtube.js';
 
 let io;
 const onlineMembers = new Map();
@@ -106,7 +107,7 @@ export function initSocketIO(server) {
             socket.nsp.emit('queue:updated', queue);
         });
 
-        socket.on('player:ended', () => {
+        socket.on('player:ended', async () => {
             const now = Date.now();
             const lastEnded = endedLocks.get(slug) || 0;
             if (now - lastEnded < 3000) return;
@@ -121,17 +122,48 @@ export function initSocketIO(server) {
             let next = db.prepare(`SELECT * FROM songs WHERE room_id = ? ORDER BY vote_score DESC, position ASC, created_at ASC LIMIT 1`).get(socket.roomId);
             const stateObj = playerStates.get(slug) || {};
 
-            // Smart Autoplay: if queue empty and autoplay enabled, pick from history
+            // Smart Autoplay: if queue empty and autoplay enabled, find related song
             if (!next) {
                 const room = db.prepare('SELECT autoplay_enabled FROM rooms WHERE id = ?').get(socket.roomId);
                 if (room?.autoplay_enabled) {
                     const lastVideoId = current?.youtube_id;
-                    const histSong = db.prepare(`SELECT DISTINCT youtube_id, title, thumbnail, duration, channel_name, added_by FROM song_history WHERE room_id = ? ${lastVideoId ? 'AND youtube_id != ?' : ''} ORDER BY RANDOM() LIMIT 1`).get(...(lastVideoId ? [socket.roomId, lastVideoId] : [socket.roomId]));
-                    if (histSong) {
+                    const lastTitle = current?.title;
+                    const lastChannel = current?.channel_name;
+
+                    // Get recently played IDs to avoid repeats
+                    const recentHistory = db.prepare(`SELECT youtube_id FROM song_history WHERE room_id = ? ORDER BY played_at DESC LIMIT 10`).all(socket.roomId);
+                    const excludeIds = recentHistory.map(h => h.youtube_id);
+
+                    let autoSong = null;
+
+                    // Strategy 1: YouTube related videos (search by channel/title)
+                    if (lastVideoId && lastTitle) {
+                        try {
+                            const related = await fetchRelatedVideos(lastVideoId, lastTitle, lastChannel, excludeIds);
+                            if (related.length > 0) {
+                                const pick = related[Math.floor(Math.random() * Math.min(3, related.length))]; // Pick from top 3
+                                // Fetch proper metadata
+                                const meta = await fetchVideoMetadata(pick.videoId);
+                                autoSong = meta || { videoId: pick.videoId, title: pick.title, thumbnail: pick.thumbnail, duration: 0, channelName: pick.channelName };
+                            }
+                        } catch (e) { console.error('Autoplay YouTube fetch error:', e.message); }
+                    }
+
+                    // Strategy 2: Fallback to random from history
+                    if (!autoSong) {
+                        const histSong = db.prepare(`SELECT DISTINCT youtube_id, title, thumbnail, duration, channel_name, added_by FROM song_history WHERE room_id = ? ${lastVideoId ? 'AND youtube_id != ?' : ''} ORDER BY RANDOM() LIMIT 1`).get(...(lastVideoId ? [socket.roomId, lastVideoId] : [socket.roomId]));
+                        if (histSong) {
+                            autoSong = { videoId: histSong.youtube_id, title: histSong.title, thumbnail: histSong.thumbnail, duration: histSong.duration, channelName: histSong.channel_name, addedBy: histSong.added_by };
+                        }
+                    }
+
+                    if (autoSong) {
                         const autoId = uuidv4();
-                        db.prepare(`INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position, is_playing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`).run(autoId, socket.roomId, histSong.youtube_id, histSong.title, histSong.thumbnail, histSong.duration, histSong.channel_name, histSong.added_by);
+                        const addedBy = autoSong.addedBy || current?.added_by || socket.user.userId;
+                        db.prepare(`INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position, is_playing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`).run(autoId, socket.roomId, autoSong.videoId, autoSong.title, autoSong.thumbnail, autoSong.duration || 0, autoSong.channelName || 'Unknown', addedBy);
                         next = db.prepare('SELECT * FROM songs WHERE id = ?').get(autoId);
-                        socket.nsp.emit('notification', { type: 'info', message: `🎵 Autoplay: ${histSong.title}` });
+                        socket.nsp.emit('notification', { type: 'info', message: `🎵 Autoplay: ${autoSong.title}` });
+                        socket.nsp.emit('autoplay:next', { title: autoSong.title, thumbnail: autoSong.thumbnail });
                     }
                 }
             }
