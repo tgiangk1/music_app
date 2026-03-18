@@ -1,16 +1,28 @@
 import { Router } from 'express';
 import { verifyToken } from '../middlewares/auth.js';
-import { searchYouTube } from '../services/youtube.js';
+import { searchYouTube, searchYouTubeNextPage } from '../services/youtube.js';
 
 const router = Router();
 
 router.get('/search', verifyToken, async (req, res) => {
     try {
-        const { q, limit } = req.query;
+        const { q, limit, nextPage } = req.query;
         if (!q || !q.trim()) return res.status(400).json({ error: 'Search query is required' });
         const maxLimit = Math.min(parseInt(limit) || 10, 20);
-        const results = await searchYouTube(q.trim(), maxLimit);
-        res.json({ results });
+
+        let data;
+        if (nextPage) {
+            // Load more results using nextPage token
+            const nextPageContext = JSON.parse(decodeURIComponent(nextPage));
+            data = await searchYouTubeNextPage(nextPageContext);
+        } else {
+            data = await searchYouTube(q.trim(), maxLimit);
+        }
+
+        res.json({
+            results: data.results,
+            nextPage: data.nextPage ? encodeURIComponent(JSON.stringify(data.nextPage)) : null,
+        });
     } catch (err) {
         console.error('YouTube search error:', err);
         res.status(500).json({ error: 'Failed to search YouTube' });

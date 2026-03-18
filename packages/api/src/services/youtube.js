@@ -62,13 +62,25 @@ function _fallbackMetadata(videoId) {
 }
 
 export async function searchYouTube(query, limit = 10) {
-    if (!query || !query.trim()) return [];
+    if (!query || !query.trim()) return { results: [], nextPage: null };
     try {
         const ytSearch = await import('youtube-search-api');
-        const results = await ytSearch.GetListByKeyword(query, false, limit);
-        if (!results?.items?.length) return [];
-        return results.items.filter(item => item.type === 'video').map(item => ({ videoId: item.id, title: item.title, thumbnail: item.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`, duration: item.length?.simpleText || '0:00', channelName: item.channelTitle || 'Unknown' })).slice(0, limit);
-    } catch (err) { console.error('YouTube search error:', err.message); return []; }
+        const data = await ytSearch.GetListByKeyword(query, false, limit);
+        if (!data?.items?.length) return { results: [], nextPage: null };
+        const results = data.items.filter(item => item.type === 'video').map(item => ({ videoId: item.id, title: item.title, thumbnail: item.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`, duration: item.length?.simpleText || '0:00', channelName: item.channelTitle || 'Unknown' })).slice(0, limit);
+        return { results, nextPage: data.nextPage || null };
+    } catch (err) { console.error('YouTube search error:', err.message); return { results: [], nextPage: null }; }
+}
+
+export async function searchYouTubeNextPage(nextPageContext) {
+    if (!nextPageContext) return { results: [], nextPage: null };
+    try {
+        const ytSearch = await import('youtube-search-api');
+        const data = await ytSearch.NextPage(nextPageContext);
+        if (!data?.items?.length) return { results: [], nextPage: null };
+        const results = data.items.filter(item => item.type === 'video').map(item => ({ videoId: item.id, title: item.title, thumbnail: item.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`, duration: item.length?.simpleText || '0:00', channelName: item.channelTitle || 'Unknown' }));
+        return { results, nextPage: data.nextPage || null };
+    } catch (err) { console.error('YouTube next page error:', err.message); return { results: [], nextPage: null }; }
 }
 
 export function extractPlaylistId(url) {

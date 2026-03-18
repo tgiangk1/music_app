@@ -8,9 +8,12 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
     const [url, setUrl] = useState('');
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [isAdding, setIsAdding] = useState(null); // videoId being added
+    const [nextPageToken, setNextPageToken] = useState(null);
     const debounceRef = useRef(null);
     const inputRef = useRef(null);
+    const scrollRef = useRef(null);
 
     // Existing youtube IDs in queue for duplicate detection
     const queueIds = new Set(songs.map(s => s.youtube_id));
@@ -19,29 +22,64 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
     const doSearch = useCallback(async (q) => {
         if (!q.trim()) {
             setResults([]);
+            setNextPageToken(null);
             return;
         }
         setIsSearching(true);
         try {
-            const res = await api.get('/api/youtube/search', { params: { q: q.trim(), limit: 8 } });
+            const res = await api.get('/api/youtube/search', { params: { q: q.trim(), limit: 10 } });
             setResults(res.data.results || []);
+            setNextPageToken(res.data.nextPage || null);
         } catch {
             setResults([]);
+            setNextPageToken(null);
         } finally {
             setIsSearching(false);
         }
     }, []);
+
+    // Load more results
+    const loadMore = useCallback(async () => {
+        if (!nextPageToken || isLoadingMore || !query.trim()) return;
+        setIsLoadingMore(true);
+        try {
+            const res = await api.get('/api/youtube/search', {
+                params: { q: query.trim(), nextPage: nextPageToken }
+            });
+            const newResults = res.data.results || [];
+            setResults(prev => {
+                // Deduplicate
+                const existingIds = new Set(prev.map(r => r.videoId));
+                const unique = newResults.filter(r => !existingIds.has(r.videoId));
+                return [...prev, ...unique];
+            });
+            setNextPageToken(res.data.nextPage || null);
+        } catch {
+            // silently fail
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [nextPageToken, isLoadingMore, query]);
 
     useEffect(() => {
         if (mode !== 'search') return;
         if (debounceRef.current) clearTimeout(debounceRef.current);
         if (!query.trim()) {
             setResults([]);
+            setNextPageToken(null);
             return;
         }
         debounceRef.current = setTimeout(() => doSearch(query), 400);
         return () => clearTimeout(debounceRef.current);
     }, [query, mode, doSearch]);
+
+    // Infinite scroll detection
+    const handleScroll = useCallback((e) => {
+        const el = e.target;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
+            loadMore();
+        }
+    }, [loadMore]);
 
     // Add song from search results
     const handleAddFromSearch = async (video) => {
@@ -94,7 +132,7 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                 ].map(tab => (
                     <button
                         key={tab.key}
-                        onClick={() => { setMode(tab.key); setResults([]); }}
+                        onClick={() => { setMode(tab.key); setResults([]); setNextPageToken(null); }}
                         className={`flex-1 text-xs sm:text-sm py-2 px-3 rounded-lg transition-all font-medium
               ${mode === tab.key
                                 ? 'bg-card text-text-primary shadow-sm'
@@ -135,9 +173,13 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                         )}
                     </div>
 
-                    {/* Search results */}
+                    {/* Search results with infinite scroll */}
                     {results.length > 0 && (
-                        <div className="mt-3 bg-surface rounded-xl border border-border overflow-hidden max-h-80 overflow-y-auto scrollbar-thin">
+                        <div
+                            ref={scrollRef}
+                            onScroll={handleScroll}
+                            className="mt-3 bg-surface rounded-xl border border-border overflow-hidden max-h-96 overflow-y-auto scrollbar-thin"
+                        >
                             {results.map((video, idx) => {
                                 const isDup = queueIds.has(video.videoId);
                                 return (
@@ -177,6 +219,24 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                                     </div>
                                 );
                             })}
+
+                            {/* Load more indicator */}
+                            {isLoadingMore && (
+                                <div className="flex items-center justify-center gap-2 py-3 border-t border-border">
+                                    <svg className="w-4 h-4 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                    <span className="text-xs text-text-muted">Loading more...</span>
+                                </div>
+                            )}
+
+                            {/* End of results */}
+                            {!nextPageToken && results.length > 0 && !isLoadingMore && (
+                                <div className="text-center py-2 border-t border-border">
+                                    <span className="text-xs text-text-muted">{results.length} results</span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
