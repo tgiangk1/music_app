@@ -680,6 +680,7 @@ function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [autoplayEnabled, setAutoplayEnabled] = useState(room?.autoplay_enabled !== 0);
 
     const handleSavePassword = async () => {
         setIsSubmitting(true);
@@ -775,6 +776,39 @@ function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
                                 Remove
                             </button>
                         )}
+                    </div>
+                </div>
+
+                {/* Autoplay Section */}
+                <div className="mt-5 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="block text-sm text-text-secondary flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                                </svg>
+                                Smart Autoplay
+                            </label>
+                            <p className="text-xs text-text-muted mt-0.5">Play random songs from history when queue is empty</p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                const newVal = !autoplayEnabled;
+                                setAutoplayEnabled(newVal);
+                                try {
+                                    const res = await api.patch(`/api/rooms/${slug}`, { autoplayEnabled: newVal });
+                                    onUpdated(res.data.room);
+                                } catch {
+                                    setAutoplayEnabled(!newVal);
+                                    toast.error('Failed to update autoplay');
+                                }
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoplayEnabled ? 'bg-primary' : 'bg-card-hover'
+                                }`}
+                        >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoplayEnabled ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
+                        </button>
                     </div>
                 </div>
 
