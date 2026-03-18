@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import YouTube from 'react-youtube';
 import { usePlayer } from '../../hooks/usePlayer';
 import { usePlayerStore } from '../../store/playerStore';
+import AudioVisualizer, { VISUALIZER_MODES } from './AudioVisualizer';
 
 export default function PlayerComponent({
     videoId,
@@ -55,6 +56,11 @@ export default function PlayerComponent({
     });
     const [isMuted, setIsMuted] = useState(false);
     const [showVolume, setShowVolume] = useState(false);
+
+    // Visualizer state
+    const [showVisualizer, setShowVisualizer] = useState(() => localStorage.getItem('jukebox_visualizer') !== 'off');
+    const [visualizerMode, setVisualizerMode] = useState(() => localStorage.getItem('jukebox_viz_mode') || 'bars');
+    const [vizColorScheme, setVizColorScheme] = useState(() => localStorage.getItem('jukebox_viz_color') || 'neon');
 
     // Apply volume to YouTube player
     useEffect(() => {
@@ -191,6 +197,61 @@ export default function PlayerComponent({
                     className="w-full h-full"
                     iframeClassName="w-full h-full"
                 />
+                {/* Audio Visualizer Overlay */}
+                {showVisualizer && (
+                    <AudioVisualizer
+                        isPlaying={playerState === 'playing'}
+                        mode={visualizerMode}
+                        colorScheme={vizColorScheme}
+                    />
+                )}
+                {/* Visualizer Controls */}
+                <div className="absolute bottom-2 left-2 z-20 flex gap-1">
+                    <button
+                        onClick={() => {
+                            const next = !showVisualizer;
+                            setShowVisualizer(next);
+                            localStorage.setItem('jukebox_visualizer', next ? 'on' : 'off');
+                        }}
+                        className={`p-1.5 rounded-lg text-xs backdrop-blur-sm transition-all ${
+                            showVisualizer ? 'bg-primary/30 text-white' : 'bg-black/40 text-white/60 hover:text-white'
+                        }`}
+                        title="Toggle Visualizer"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
+                        </svg>
+                    </button>
+                    {showVisualizer && (
+                        <>
+                            <button
+                                onClick={() => {
+                                    const idx = VISUALIZER_MODES.indexOf(visualizerMode);
+                                    const next = VISUALIZER_MODES[(idx + 1) % VISUALIZER_MODES.length];
+                                    setVisualizerMode(next);
+                                    localStorage.setItem('jukebox_viz_mode', next);
+                                }}
+                                className="px-2 py-1 rounded-lg text-[10px] font-medium bg-black/40 text-white/80 hover:text-white backdrop-blur-sm transition-all uppercase"
+                                title="Change mode"
+                            >
+                                {visualizerMode}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const schemes = ['neon', 'sunset', 'ocean', 'primary'];
+                                    const idx = schemes.indexOf(vizColorScheme);
+                                    const next = schemes[(idx + 1) % schemes.length];
+                                    setVizColorScheme(next);
+                                    localStorage.setItem('jukebox_viz_color', next);
+                                }}
+                                className="px-2 py-1 rounded-lg text-[10px] font-medium bg-black/40 text-white/80 hover:text-white backdrop-blur-sm transition-all"
+                                title="Change colors"
+                            >
+                                🎨 {vizColorScheme}
+                            </button>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* Progress Bar */}
