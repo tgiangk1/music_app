@@ -9,6 +9,8 @@ import AuthCallback from './pages/AuthCallback'
 import Home from './pages/Home'
 import Room from './pages/Room'
 import AdminPanel from './pages/AdminPanel'
+import Explore from './pages/Explore'
+import Profile from './pages/Profile'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ThemeProvider } from './components/ThemeProvider'
 
@@ -32,6 +34,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                             <AdminPanel />
                         </ProtectedRoute>
                     } />
+                    <Route path="/explore" element={<Explore />} />
+                    <Route path="/profile/:userId" element={<Profile />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </BrowserRouter>

@@ -9,6 +9,8 @@ let io;
 const onlineMembers = new Map();
 const endedLocks = new Map();
 
+export function getIO() { return io; }
+
 export function initSocketIO(server) {
     io = new Server(server, {
         cors: { origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true },
