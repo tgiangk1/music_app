@@ -30,23 +30,31 @@ async function _fetchFromYoutube(videoId) {
         if (result.lengthSeconds) {
             duration = parseInt(result.lengthSeconds);
         } else if (result.length?.simpleText) {
-            // Parse "MM:SS" or "H:MM:SS" format
-            const parts = result.length.simpleText.split(':').map(Number);
-            if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            else if (parts.length === 2) duration = parts[0] * 60 + parts[1];
-        } else if (result.length?.accessibility?.accessibilityData?.label) {
-            // Parse "X minutes, Y seconds" format
-            const label = result.length.accessibility.accessibilityData.label;
-            const mins = label.match(/(\d+)\s*minute/)?.[1] || 0;
-            const secs = label.match(/(\d+)\s*second/)?.[1] || 0;
-            const hrs = label.match(/(\d+)\s*hour/)?.[1] || 0;
-            duration = Number(hrs) * 3600 + Number(mins) * 60 + Number(secs);
+            duration = _parseDuration(result.length.simpleText);
+        }
+        // Fallback: search by videoId to get duration (GetVideoDetails often misses it)
+        if (!duration) {
+            try {
+                const search = await ytSearch.GetListByKeyword(videoId, false, 1);
+                const match = search?.items?.find(i => i.id === videoId);
+                if (match?.length?.simpleText) {
+                    duration = _parseDuration(match.length.simpleText);
+                }
+            } catch (e) { /* skip */ }
         }
         return { videoId, title: result.title, thumbnail: result.thumbnail?.thumbnails?.[0]?.url || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, duration, channelName: result.channel || 'Unknown' };
     } catch (err) {
         console.error('YouTube metadata fetch error:', err.message);
         return _fallbackMetadata(videoId);
     }
+}
+
+function _parseDuration(simpleText) {
+    if (!simpleText) return 0;
+    const parts = simpleText.split(':').map(Number);
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return 0;
 }
 
 function _fallbackMetadata(videoId) {
