@@ -104,18 +104,21 @@ export default function ChatBox({ socket }) {
                     messages.map((msg) => {
                         const isMe = msg.user.userId === user?.id;
                         return (
-                            <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+                            <div key={msg.id} className={`flex gap-2 items-start ${isMe ? 'flex-row-reverse' : ''}`}>
                                 <img
                                     src={msg.user.avatar}
                                     alt=""
-                                    className="w-7 h-7 rounded-full flex-shrink-0 mt-1"
+                                    className="w-7 h-7 rounded-full flex-shrink-0 mt-2"
                                     referrerPolicy="no-referrer"
                                 />
                                 <div className={`max-w-[75%] ${isMe ? 'text-right' : ''}`}>
                                     <div className={`inline-block px-3 py-2 rounded-2xl text-sm ${isMe
                                         ? 'bg-primary/20 text-text-primary rounded-tr-md'
-                                        : 'bg-card text-text-primary rounded-tl-md'
+                                        : 'bg-white/[0.06] border border-white/[0.08] text-text-primary rounded-tl-md'
                                         }`}>
+                                        {!isMe && (
+                                            <p className="text-[11px] font-semibold text-primary/80 mb-0.5">{msg.user.displayName || 'Unknown'}</p>
+                                        )}
                                         <p style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>{msg.content}</p>
                                     </div>
                                     <div className={`flex items-center gap-1.5 mt-0.5 font-mono text-[10px] text-text-muted ${isMe ? 'justify-end' : ''}`}>

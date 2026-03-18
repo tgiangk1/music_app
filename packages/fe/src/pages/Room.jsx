@@ -8,6 +8,8 @@ import { useNotifications } from '../hooks/useNotifications';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import PlayerComponent from '../components/Player/PlayerComponent';
 import MiniPlayer from '../components/Player/MiniPlayer';
+import RadioMode from '../components/Player/RadioMode';
+import CrossfadeIndicator from '../components/Player/CrossfadeIndicator';
 import QueueList from '../components/Queue/QueueList';
 import QueueHistory from '../components/Queue/QueueHistory';
 import AddSong from '../components/AddSong/AddSong';
@@ -37,6 +39,10 @@ export default function Room() {
     const [showSidebar, setShowSidebar] = useState(false); // mobile/tablet sidebar toggle
     const [mobileTab, setMobileTab] = useState('player'); // mobile bottom nav: 'player' | 'queue' | 'chat' | 'members'
     const [repeatMode, setRepeatMode] = useState(() => localStorage.getItem('jukebox_repeat') || 'off'); // 'off' | 'single' | 'queue'
+    const [radioModeEnabled, setRadioModeEnabled] = useState(false);
+    const [crossfadeActive, setCrossfadeActive] = useState(false);
+    const [crossfadeProgress, setCrossfadeProgress] = useState(0);
+    const [playerProgress, setPlayerProgress] = useState({ current: 0, duration: 0 });
     const playerSectionRef = useRef(null);
     const qrCanvasRef = useRef(null);
     const profileMenuRef = useRef(null);
@@ -299,6 +305,19 @@ export default function Room() {
 
                     <div className="flex items-center gap-1 sm:gap-2">
 
+                        {/* Radio Mode Toggle */}
+                        {!isGuest && (
+                            <button
+                                onClick={() => setRadioModeEnabled(prev => !prev)}
+                                className={`btn-ghost text-sm p-2 hidden sm:flex transition-colors ${radioModeEnabled ? 'text-primary bg-primary/10' : ''}`}
+                                title={radioModeEnabled ? 'Radio Mode ON' : 'Radio Mode OFF'}
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 7.5l16.5-4.125M12 6.75c-2.708 0-5.363.224-7.948.655C2.999 7.58 2.25 8.507 2.25 9.574v9.176A2.25 2.25 0 004.5 21h15a2.25 2.25 0 002.25-2.25V9.574c0-1.067-.75-1.994-1.802-2.169A48.329 48.329 0 0012 6.75z" />
+                                </svg>
+                            </button>
+                        )}
+
                         {/* Room Settings (Owner only) */}
                         {isRoomOwner && (
                             <button
@@ -435,6 +454,27 @@ export default function Room() {
 
                         {/* Add Song — hidden for guests, hidden on mobile queue-only view */}
                         {!isGuest && <div className={mobileTab === 'queue' ? 'hidden md:block' : ''}><AddSong onAdd={addSong} slug={slug} songs={songs} /></div>}
+
+                        {/* Crossfade indicator */}
+                        {crossfadeActive && (
+                            <CrossfadeIndicator
+                                isActive={crossfadeActive}
+                                currentSong={currentSong}
+                                nextSong={queue[0]}
+                                fadeProgress={crossfadeProgress}
+                            />
+                        )}
+
+                        {/* Radio Mode panel — only visible when enabled */}
+                        {!isGuest && radioModeEnabled && (
+                            <RadioMode
+                                slug={slug}
+                                isEnabled={radioModeEnabled}
+                                onToggle={() => setRadioModeEnabled(prev => !prev)}
+                                onAddSong={addSong}
+                                queueLength={queue.length}
+                            />
+                        )}
 
                         {/* Queue / History tabs */}
                         <div className={mobileTab === 'player' ? 'hidden md:block' : ''}>
@@ -579,6 +619,7 @@ export default function Room() {
                 isRoomOwner={isRoomOwner}
                 isVisible={showMiniPlayer}
                 emitPlayerSkip={emitPlayerSkip}
+                progress={playerProgress}
             />
 
             {/* Shortcuts help */}

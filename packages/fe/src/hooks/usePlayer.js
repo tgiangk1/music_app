@@ -1,9 +1,13 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 
-export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeatMode = 'off' }) {
+export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeatMode = 'off', onCrossfadeStart, onCrossfadeEnd, onProgressUpdate }) {
     const playerRef = useRef(null);
     const { videoId, state: playerState } = usePlayerStore();
+    const crossfadeRef = useRef(false);
+    const savedVolumeRef = useRef(70);
+
+    const crossfadeDuration = parseInt(localStorage.getItem('jukebox_crossfade') || '3', 10);
 
     // Periodic sync: owner emits currentTime every 10s while playing
     useEffect(() => {
@@ -19,6 +23,48 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeat
         return () => clearInterval(interval);
     }, [isRoomOwner, playerState, videoId, emitPlayerSync]);
 
+    // Progress monitoring + Crossfade detection
+    useEffect(() => {
+        if (playerState !== 'playing' || !videoId) return;
+
+        const interval = setInterval(() => {
+            const player = playerRef.current;
+            if (!player) return;
+            try {
+                const current = player.getCurrentTime?.() || 0;
+                const duration = player.getDuration?.() || 0;
+
+                // Emit progress for mini player
+                if (duration > 0) {
+                    onProgressUpdate?.({ current, duration });
+                }
+
+                // Crossfade logic
+                if (crossfadeDuration > 0 && duration > 0 && !crossfadeRef.current) {
+                    const timeRemaining = duration - current;
+                    if (timeRemaining <= crossfadeDuration && timeRemaining > 0) {
+                        // Start crossfade
+                        crossfadeRef.current = true;
+                        savedVolumeRef.current = player.getVolume?.() || 70;
+                        onCrossfadeStart?.();
+                    }
+                }
+
+                // During crossfade — gradually reduce volume
+                if (crossfadeRef.current && duration > 0) {
+                    const timeRemaining = duration - current;
+                    if (timeRemaining > 0) {
+                        const fadeProgress = 1 - (timeRemaining / crossfadeDuration);
+                        const newVolume = Math.max(0, savedVolumeRef.current * (1 - fadeProgress));
+                        try { player.setVolume(newVolume); } catch { }
+                    }
+                }
+            } catch { }
+        }, 200);
+
+        return () => clearInterval(interval);
+    }, [playerState, videoId, crossfadeDuration, onCrossfadeStart, onProgressUpdate]);
+
     const onReady = useCallback((event) => {
         playerRef.current = event.target;
 
@@ -32,14 +78,31 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeat
         const ytState = event.data;
 
         if (ytState === 0) {
+            // Reset crossfade
+            if (crossfadeRef.current) {
+                crossfadeRef.current = false;
+                onCrossfadeEnd?.();
+                // Restore volume for next song
+                try { event.target.setVolume(savedVolumeRef.current); } catch { }
+            }
+
             // Video ended
             if (repeatMode === 'single') {
-                // Repeat single: seek back to start
                 event.target.seekTo(0);
                 event.target.playVideo();
             } else {
-                // Normal or queue repeat: advance to next
                 emitPlayerEnded?.();
+            }
+        }
+
+        // Reset crossfade when new song starts
+        if (ytState === 1 && crossfadeRef.current) {
+            // Might be a new song loading — check if crossfade should reset
+            const current = event.target.getCurrentTime?.() || 0;
+            if (current < 2) {
+                crossfadeRef.current = false;
+                onCrossfadeEnd?.();
+                try { event.target.setVolume(savedVolumeRef.current); } catch { }
             }
         }
 
@@ -60,14 +123,13 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeat
                 currentTime,
             });
         }
-    }, [videoId, isRoomOwner, emitPlayerSync, emitPlayerEnded, repeatMode]);
+    }, [videoId, isRoomOwner, emitPlayerSync, emitPlayerEnded, repeatMode, onCrossfadeEnd]);
 
     // Handle YouTube errors (blocked/unavailable videos)
     const onError = useCallback((event) => {
         console.warn('YouTube player error:', event.data);
-        // Error codes: 2=invalid param, 5=HTML5 error, 100=not found, 101/150=embed restricted
         if (isRoomOwner) {
-            emitPlayerEnded?.(); // Auto-skip to next
+            emitPlayerEnded?.();
         }
     }, [isRoomOwner, emitPlayerEnded]);
 
@@ -104,3 +166,4 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, repeat
         },
     };
 }
+
