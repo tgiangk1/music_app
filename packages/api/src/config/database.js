@@ -119,6 +119,7 @@ function runMigrations() {
   try { db.exec(`ALTER TABLE rooms ADD COLUMN song_limit INTEGER DEFAULT 0`); } catch (e) { }
   try { db.exec(`ALTER TABLE rooms ADD COLUMN room_password TEXT`); } catch (e) { }
   try { db.exec(`ALTER TABLE room_members ADD COLUMN password_verified_at TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE room_members ADD COLUMN room_role TEXT DEFAULT 'listener'`); } catch (e) { }
   try { db.exec(`ALTER TABLE rooms ADD COLUMN room_icon TEXT DEFAULT '🎵'`); } catch (e) { }
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_messages (

@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { getDb } from '../config/database.js';
 import { playerStates } from '../routes/player.js';
+import { getRoomRole } from '../middlewares/role.js';
 import { v4 as uuidv4 } from 'uuid';
 
 let io;
@@ -37,7 +38,8 @@ export function initSocketIO(server) {
                 const isMember = db.prepare('SELECT 1 FROM room_members WHERE room_id = ? AND user_id = ?').get(room.id, user.id);
                 if (!isMember && room.created_by !== user.id && user.role !== 'admin') return next(new Error('Access denied to this private room'));
             }
-            socket.user = { userId: user.id, displayName: user.display_name, avatar: user.avatar, role: user.role, email: user.email, isOwner: room.created_by === user.id };
+            const roomRole = getRoomRole(room.id, user.id, room.created_by, user.role);
+            socket.user = { userId: user.id, displayName: user.display_name, avatar: user.avatar, role: user.role, email: user.email, isOwner: room.created_by === user.id, roomRole };
             socket.roomSlug = slug;
             socket.roomId = room.id;
             socket.roomOwnerId = room.created_by;
@@ -67,8 +69,8 @@ export function initSocketIO(server) {
 
         socket.on('player:sync', (data) => {
             if (!data || typeof data !== 'object') return;
-            const canControl = socket.user.isOwner || socket.user.role === 'admin';
-            if (!canControl) return socket.emit('notification', { type: 'warning', message: 'Only the room owner can control the player' });
+            const canControl = socket.user.isOwner || socket.user.role === 'admin' || socket.user.roomRole === 'dj';
+            if (!canControl) return socket.emit('notification', { type: 'warning', message: 'Only the room owner or DJs can control the player' });
             const stateObj = playerStates.get(slug) || { videoId: null, state: 'idle', currentTime: 0, updatedAt: new Date().toISOString(), updatedBy: null };
             if (typeof data.videoId === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(data.videoId)) stateObj.videoId = data.videoId;
             else if (data.videoId === null) stateObj.videoId = null;
@@ -81,8 +83,8 @@ export function initSocketIO(server) {
         });
 
         socket.on('player:skip', () => {
-            const canControl = socket.user.isOwner || socket.user.role === 'admin';
-            if (!canControl) return socket.emit('notification', { type: 'warning', message: 'Only the room owner can skip songs' });
+            const canControl = socket.user.isOwner || socket.user.role === 'admin' || socket.user.roomRole === 'dj';
+            if (!canControl) return socket.emit('notification', { type: 'warning', message: 'Only the room owner or DJs can skip songs' });
             const db = getDb();
             const current = db.prepare('SELECT * FROM songs WHERE room_id = ? AND is_playing = 1').get(socket.roomId);
             if (current) {
@@ -177,6 +179,29 @@ export function initSocketIO(server) {
             }
         });
 
+        // Set member role (owner only)
+        socket.on('member:set-role', ({ userId, role }) => {
+            if (socket.user.userId !== socket.roomOwnerId && socket.user.role !== 'admin') return;
+            if (userId === socket.roomOwnerId) return; // Can't change owner's role
+            if (!['dj', 'listener'].includes(role)) return;
+            const db = getDb();
+            db.prepare('UPDATE room_members SET room_role = ? WHERE room_id = ? AND user_id = ?').run(role, socket.roomId, userId);
+            // Update the socket user data for the affected user
+            const nsp = socket.nsp;
+            for (const [id, s] of nsp.sockets) {
+                if (s.user?.userId === userId) s.user.roomRole = role;
+            }
+            // Re-emit member list with updated roles
+            if (onlineMembers.has(slug)) {
+                for (const [sid, m] of onlineMembers.get(slug)) {
+                    if (m.userId === userId) m.roomRole = role;
+                }
+                const members = Array.from(onlineMembers.get(slug).values());
+                const uniqueMembers = [...new Map(members.map(m => [m.userId, m])).values()];
+                nsp.emit('member:list', uniqueMembers);
+            }
+            nsp.emit('notification', { type: 'info', message: `${userId === socket.user.userId ? 'Your' : 'A member\'s'} role was changed to ${role}` });
+        });
         socket.on('disconnect', () => {
             console.log(`🔌 ${socket.user.displayName} disconnected from room: ${slug}`);
             if (onlineMembers.has(slug)) { onlineMembers.get(slug).delete(socket.id); if (onlineMembers.get(slug).size === 0) onlineMembers.delete(slug); }
