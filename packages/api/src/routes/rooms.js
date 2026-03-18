@@ -121,7 +121,7 @@ router.post('/:slug/join', verifyToken, (req, res) => {
 // Update room
 router.patch('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     const room = req.room;
-    const { name, description, isPublic, coverColor, songLimit, password, roomIcon } = req.body;
+    const { name, description, isPublic, coverColor, songLimit, password, roomIcon, autoplayEnabled } = req.body;
     const updates = {};
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description;
@@ -129,6 +129,7 @@ router.patch('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     if (coverColor !== undefined) updates.cover_color = coverColor;
     if (roomIcon !== undefined) updates.room_icon = roomIcon;
     if (songLimit !== undefined) updates.song_limit = Math.max(0, parseInt(songLimit) || 0);
+    if (autoplayEnabled !== undefined) updates.autoplay_enabled = autoplayEnabled ? 1 : 0;
     if (password !== undefined) updates.room_password = password && password.trim() ? password.trim() : null;
     // Private rooms MUST have a password
     const finalIsPublic = updates.is_public !== undefined ? updates.is_public : room.is_public;
