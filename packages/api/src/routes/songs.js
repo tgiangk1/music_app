@@ -154,4 +154,48 @@ router.delete('/:slug/songs', verifyToken, requireRoomOwnerOrAdmin, (req, res) =
     res.json({ message: 'Queue cleared' });
 });
 
+// Push saved playlist to room queue
+router.post('/:slug/songs/push-playlist', verifyToken, (req, res) => {
+    const { playlistId } = req.body;
+    if (!playlistId) return res.status(400).json({ error: 'playlistId is required' });
+    const db = getDb();
+    const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+    const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND user_id = ?').get(playlistId, req.user.userId);
+    if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
+    const songs = db.prepare('SELECT * FROM playlist_songs WHERE playlist_id = ? ORDER BY position ASC').all(playlistId);
+    if (songs.length === 0) return res.status(400).json({ error: 'Playlist is empty' });
+
+    const existingIds = new Set(
+        db.prepare('SELECT youtube_id FROM songs WHERE room_id = ?').all(room.id).map(s => s.youtube_id)
+    );
+    const maxPos = db.prepare('SELECT MAX(position) as pos FROM songs WHERE room_id = ?').get(room.id);
+    let position = (maxPos?.pos || 0) + 1;
+    let added = 0;
+    let skipped = 0;
+
+    const insert = db.prepare('INSERT INTO songs (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const pushAll = db.transaction(() => {
+        for (const song of songs) {
+            if (existingIds.has(song.youtube_id)) { skipped++; continue; }
+            insert.run(uuidv4(), room.id, song.youtube_id, song.title, song.thumbnail, song.duration, song.channel_name, req.user.userId, position++);
+            existingIds.add(song.youtube_id);
+            added++;
+        }
+    });
+    pushAll();
+
+    if (added > 0) {
+        // Auto-play first song if queue was empty
+        const songCount = db.prepare('SELECT COUNT(*) as count FROM songs WHERE room_id = ?').get(room.id).count;
+        if (songCount === added) {
+            const first = db.prepare('SELECT * FROM songs WHERE room_id = ? ORDER BY position ASC LIMIT 1').get(room.id);
+            if (first) db.prepare('UPDATE songs SET is_playing = 1 WHERE id = ?').run(first.id);
+        }
+        emitQueueUpdate(req, req.params.slug, room.id);
+    }
+
+    res.json({ added, skipped });
+});
+
 export default router;

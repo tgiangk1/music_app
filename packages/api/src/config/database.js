@@ -147,4 +147,31 @@ function runMigrations() {
     );
     CREATE INDEX IF NOT EXISTS idx_activity_room ON activity_log(room_id, created_at DESC);
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS playlists (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      song_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists(user_id);
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS playlist_songs (
+      id TEXT PRIMARY KEY,
+      playlist_id TEXT NOT NULL,
+      youtube_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      thumbnail TEXT,
+      duration INTEGER,
+      channel_name TEXT,
+      position INTEGER DEFAULT 0,
+      added_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_playlist_songs ON playlist_songs(playlist_id, position);
+  `);
 }

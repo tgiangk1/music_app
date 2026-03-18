@@ -71,5 +71,15 @@ export const usePlaylistStore = create((set, get) => ({
         } catch (err) {
             throw new Error(err.response?.data?.error || 'Failed to push playlist');
         }
+    },
+
+    saveQueueAsPlaylist: async (roomSlug, name) => {
+        try {
+            const res = await api.post('/api/playlists/save-queue', { roomSlug, name });
+            set((state) => ({ playlists: [res.data, ...state.playlists] }));
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.error || 'Failed to save queue');
+        }
     }
 }));
