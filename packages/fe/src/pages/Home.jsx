@@ -135,12 +135,10 @@ export default function Home() {
                                 {/* Room color accent */}
                                 <div className="flex items-start justify-between mb-4">
                                     <div
-                                        className="w-12 h-12 rounded-xl flex items-center justify-center"
-                                        style={{ backgroundColor: `${room.cover_color}20` }}
+                                        className="w-12 h-12 rounded-xl flex items-center justify-center text-xl"
+                                        style={{ background: room.cover_color?.startsWith('linear') ? room.cover_color : `${room.cover_color}20` }}
                                     >
-                                        <svg className="w-6 h-6" style={{ color: room.cover_color }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
-                                        </svg>
+                                        {room.room_icon || '🎵'}
                                     </div>
                                     {/* Lock icon for password-protected rooms */}
                                     {room.has_password && (
@@ -201,10 +199,20 @@ function CreateRoomModal({ onClose, onCreated }) {
     const [isPublic, setIsPublic] = useState(true);
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [coverColor, setCoverColor] = useState('rgb(var(--color-primary))');
+    const [coverColor, setCoverColor] = useState('#8b5cf6');
+    const [roomIcon, setRoomIcon] = useState('🎵');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const colors = ['#c8a87c', '#8aad7c', '#c47a6a', '#6b9ec4', '#b89c6b', '#7ca5a5', '#c49a6b', '#9b8ab5'];
+    const solidColors = ['#8b5cf6', '#c8a87c', '#8aad7c', '#c47a6a', '#6b9ec4', '#b89c6b', '#7ca5a5', '#9b8ab5'];
+    const gradients = [
+        'linear-gradient(135deg, #667eea, #764ba2)',
+        'linear-gradient(135deg, #f093fb, #f5576c)',
+        'linear-gradient(135deg, #4facfe, #00f2fe)',
+        'linear-gradient(135deg, #43e97b, #38f9d7)',
+        'linear-gradient(135deg, #fa709a, #fee140)',
+        'linear-gradient(135deg, #a18cd1, #fbc2eb)',
+    ];
+    const icons = ['🎵', '🎸', '🎹', '🎧', '🎤', '🎷', '🥁', '🎻', '🎺', '🎶', '💿', '🎙️'];
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -217,6 +225,7 @@ function CreateRoomModal({ onClose, onCreated }) {
                 description,
                 isPublic,
                 coverColor,
+                roomIcon,
                 password: password.trim() || undefined,
             });
             toast.success('Room created!');
@@ -266,8 +275,8 @@ function CreateRoomModal({ onClose, onCreated }) {
 
                     <div>
                         <label className="block text-sm text-text-secondary mb-2">Cover Color</label>
-                        <div className="flex gap-2">
-                            {colors.map(c => (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {solidColors.map(c => (
                                 <button
                                     key={c}
                                     type="button"
@@ -275,6 +284,33 @@ function CreateRoomModal({ onClose, onCreated }) {
                                     className={`w-8 h-8 rounded-lg transition-transform ${coverColor === c ? 'scale-110 ring-2 ring-white/50' : 'hover:scale-105'}`}
                                     style={{ backgroundColor: c }}
                                 />
+                            ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {gradients.map(g => (
+                                <button
+                                    key={g}
+                                    type="button"
+                                    onClick={() => setCoverColor(g)}
+                                    className={`w-8 h-8 rounded-lg transition-transform ${coverColor === g ? 'scale-110 ring-2 ring-white/50' : 'hover:scale-105'}`}
+                                    style={{ background: g }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-text-secondary mb-2">Room Icon</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {icons.map(icon => (
+                                <button
+                                    key={icon}
+                                    type="button"
+                                    onClick={() => setRoomIcon(icon)}
+                                    className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all ${roomIcon === icon ? 'bg-primary/20 ring-2 ring-primary scale-110' : 'bg-surface hover:bg-card-hover hover:scale-105'}`}
+                                >
+                                    {icon}
+                                </button>
                             ))}
                         </div>
                     </div>
