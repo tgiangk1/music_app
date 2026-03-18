@@ -68,6 +68,11 @@ export default function Home() {
                             </Link>
                         )}
 
+                        <Link to="/gamification" className="btn-ghost text-sm flex items-center gap-2">
+                            <span>🏆</span>
+                            <span className="hidden sm:inline">Stats</span>
+                        </Link>
+
                         <div className="flex items-center gap-3">
                             <img
                                 src={user?.avatar}

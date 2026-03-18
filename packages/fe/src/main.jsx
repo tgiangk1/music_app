@@ -9,6 +9,7 @@ import AuthCallback from './pages/AuthCallback'
 import Home from './pages/Home'
 import Room from './pages/Room'
 import AdminPanel from './pages/AdminPanel'
+import Gamification from './pages/Gamification'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ThemeProvider } from './components/ThemeProvider'
 
@@ -30,6 +31,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     <Route path="/admin" element={
                         <ProtectedRoute requireAdmin>
                             <AdminPanel />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/gamification" element={
+                        <ProtectedRoute>
+                            <Gamification />
                         </ProtectedRoute>
                     } />
                     <Route path="*" element={<Navigate to="/" replace />} />

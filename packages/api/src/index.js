@@ -19,6 +19,7 @@ import youtubeRoutes from './routes/youtube.js';
 import socialRoutes from './routes/social.js';
 import lyricsRoutes from './routes/lyrics.js';
 import playlistRoutes from './routes/playlists.js';
+import gamificationRoutes from './routes/gamification.js';
 
 const app = express();
 const server = createServer(app);
@@ -53,6 +54,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/youtube', youtubeRoutes);
 app.use('/api/lyrics', lyricsRoutes);
 app.use('/api/playlists', playlistRoutes);
+app.use('/api/gamification', gamificationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
