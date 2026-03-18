@@ -271,10 +271,15 @@ canvas,
     max-width: 140px;
   }
 
-  /* Add bottom padding for guest banner */
+  /* Add bottom padding for guest banner + mobile nav */
   main {
     padding-bottom: 80px !important;
   }
+}
+
+/* Safe area for iOS notch/home indicator */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @media (max-width: 480px) {

@@ -17,6 +17,7 @@ import { EmojiOverlay } from '../components/Social/EmojiReactions';
 import ChatBox from '../components/Social/ChatBox';
 import RoomStats from '../components/Social/RoomStats';
 import ThemeSwitcher from '../components/ThemeSwitcher';
+import MobileNav from '../components/MobileNav';
 import { generateQRCode, generateQRDataURL } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -34,6 +35,7 @@ export default function Room() {
     const [showShareModal, setShowShareModal] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showSidebar, setShowSidebar] = useState(false); // mobile/tablet sidebar toggle
+    const [mobileTab, setMobileTab] = useState('player'); // mobile bottom nav: 'player' | 'queue' | 'chat' | 'members'
     const [repeatMode, setRepeatMode] = useState(() => localStorage.getItem('jukebox_repeat') || 'off'); // 'off' | 'single' | 'queue'
     const playerSectionRef = useRef(null);
     const qrCanvasRef = useRef(null);
@@ -401,10 +403,10 @@ export default function Room() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-6 pt-6 pb-12">
+            <main className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-6 pt-6 pb-20 md:pb-12">
                 <div className="flex flex-col xl:flex-row gap-6">
                     {/* Left: Player + Queue */}
-                    <div className="flex-1 min-w-0 xl:min-w-[600px] space-y-6">
+                    <div className={`flex-1 min-w-0 xl:min-w-[600px] space-y-6 ${mobileTab !== 'player' && mobileTab !== 'queue' ? 'hidden md:block' : ''}`}>
                         {/* Player with emoji overlay — 16:9 ratio */}
                         <div ref={playerSectionRef} id="main-player" className="relative aspect-video bg-base rounded-2xl overflow-hidden">
                             <PlayerComponent
@@ -422,11 +424,11 @@ export default function Room() {
                             {!isGuest && <EmojiOverlay socket={socket} />}
                         </div>
 
-                        {/* Add Song — hidden for guests */}
-                        {!isGuest && <AddSong onAdd={addSong} slug={slug} songs={songs} />}
+                        {/* Add Song — hidden for guests, hidden on mobile queue-only view */}
+                        {!isGuest && <div className={mobileTab === 'queue' ? 'hidden md:block' : ''}><AddSong onAdd={addSong} slug={slug} songs={songs} /></div>}
 
                         {/* Queue / History tabs */}
-                        <div>
+                        <div className={mobileTab === 'player' ? 'hidden md:block' : ''}>
                             <div className="flex gap-1 mb-4 bg-surface rounded-xl p-1 max-w-xs">
                                 <button
                                     onClick={() => setQueueTab('queue')}
@@ -466,12 +468,16 @@ export default function Room() {
 
                     {/* Right Sidebar — Tabbed */}
                     {/* Desktop: always visible, fixed 360px */}
-                    {/* Tablet/Mobile: overlay panel, toggled via header button */}
+                    {/* Mobile: controlled by mobileTab (chat/members) */}
                     <div className={`
                         xl:w-[360px] xl:flex-shrink-0 xl:block xl:relative xl:bg-transparent xl:p-0
+                        ${mobileTab === 'chat' || mobileTab === 'members'
+                            ? 'block md:hidden'
+                            : 'hidden md:hidden xl:block'
+                        }
                         ${showSidebar
-                            ? 'fixed inset-0 z-40 bg-black/60 xl:static xl:z-auto'
-                            : 'hidden xl:block'
+                            ? 'fixed inset-0 z-40 bg-black/60 xl:static xl:z-auto hidden md:block xl:hidden'
+                            : 'hidden md:hidden xl:block'
                         }
                     `}
                         onClick={(e) => { if (e.target === e.currentTarget) setShowSidebar(false); }}
@@ -495,8 +501,8 @@ export default function Room() {
                                 </button>
                             )}
 
-                            {/* Tab Bar */}
-                            <div className="flex gap-1 bg-surface rounded-xl p-1 mb-3">
+                            {/* Tab Bar — hidden on mobile (bottom nav handles it) */}
+                            <div className="hidden md:flex gap-1 bg-surface rounded-xl p-1 mb-3">
                                 <button
                                     onClick={() => setSidebarTab('chat')}
                                     className={`flex-1 text-sm py-2 px-3 rounded-lg transition-colors duration-150 font-medium
@@ -522,7 +528,7 @@ export default function Room() {
 
                             {/* Tab Content — fill remaining height */}
                             <div className="flex-1 min-h-0">
-                                {sidebarTab === 'chat' && (
+                                {(sidebarTab === 'chat' || mobileTab === 'chat') && (
                                     !isGuest ? (
                                         <ChatBox socket={socket} />
                                     ) : (
@@ -531,7 +537,7 @@ export default function Room() {
                                         </div>
                                     )
                                 )}
-                                {sidebarTab === 'members' && (
+                                {(sidebarTab === 'members' || mobileTab === 'members') && (
                                     <MembersList
                                         members={onlineMembers}
                                         isRoomOwner={isRoomOwner}
@@ -549,6 +555,14 @@ export default function Room() {
                     </div>
                 </div>
             </main>
+
+            {/* Mobile Bottom Nav */}
+            <MobileNav
+                activeTab={mobileTab}
+                onTabChange={setMobileTab}
+                queueCount={queue.length}
+                memberCount={onlineMembers.length}
+            />
 
             {/* Mini Player */}
             <MiniPlayer
