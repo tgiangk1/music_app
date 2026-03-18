@@ -65,8 +65,8 @@ export default function QueueList({
                         <button
                             onClick={onRepeatToggle}
                             className={`p-1.5 rounded-lg transition-all text-xs ${repeatMode !== 'off'
-                                    ? 'text-primary bg-primary/10'
-                                    : 'text-text-muted hover:text-text-secondary hover:bg-card-hover'
+                                ? 'text-primary bg-primary/10'
+                                : 'text-text-muted hover:text-text-secondary hover:bg-card-hover'
                                 }`}
                             title={`Repeat: ${repeatMode}`}
                         >
@@ -156,7 +156,7 @@ export default function QueueList({
                                                 ref={provided.innerRef}
                                                 {...provided.draggableProps}
                                                 className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group
-                          ${snapshot.isDragging ? 'bg-card shadow-glow-lg' : 'bg-surface/50 hover:bg-card-hover'}`}
+                          ${snapshot.isDragging ? 'bg-card border border-primary/20' : 'bg-surface/50 hover:bg-card-hover'}`}
                                             >
                                                 {/* Drag handle */}
                                                 {!isGuest && (

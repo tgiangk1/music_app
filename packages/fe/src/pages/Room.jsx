@@ -13,14 +13,10 @@ import QueueHistory from '../components/Queue/QueueHistory';
 import AddSong from '../components/AddSong/AddSong';
 import MembersList from '../components/Members/MembersList';
 import ShortcutsHelp from '../components/ShortcutsHelp';
-// Social components
-import EmojiReactions from '../components/Social/EmojiReactions';
+import { EmojiOverlay } from '../components/Social/EmojiReactions';
 import ChatBox from '../components/Social/ChatBox';
-
-import ActivityFeed from '../components/Social/ActivityFeed';
-import LyricsPanel from '../components/Social/LyricsPanel';
 import RoomStats from '../components/Social/RoomStats';
-import { useTheme } from '../components/ThemeProvider';
+import ThemeSwitcher from '../components/ThemeSwitcher';
 import { generateQRCode } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -32,16 +28,17 @@ export default function Room() {
     const playerState = usePlayerStore();
     const [room, setRoom] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [showMembers, setShowMembers] = useState(false);
+    const [sidebarTab, setSidebarTab] = useState('chat'); // 'chat' | 'members' | 'stats'
     const [queueTab, setQueueTab] = useState('queue'); // 'queue' | 'history'
     const [showMiniPlayer, setShowMiniPlayer] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [showSidebar, setShowSidebar] = useState(false); // mobile/tablet sidebar toggle
     const [repeatMode, setRepeatMode] = useState(() => localStorage.getItem('jukebox_repeat') || 'off'); // 'off' | 'single' | 'queue'
     const playerSectionRef = useRef(null);
     const qrCanvasRef = useRef(null);
     const profileMenuRef = useRef(null);
-    const { theme, toggleTheme } = useTheme();
+
     const [showSettings, setShowSettings] = useState(false);
 
     const isGuest = !user && !authLoading;
@@ -218,7 +215,7 @@ export default function Room() {
     return (
         <div className="min-h-screen flex flex-col">
             {/* Room Header */}
-            <header className="border-b border-border/50 bg-surface/50 backdrop-blur-xl sticky top-0 z-50">
+            <header className="border-b border-border bg-surface sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                         <Link to="/" className="p-2 hover:bg-card rounded-lg transition-colors flex-shrink-0">
@@ -285,23 +282,6 @@ export default function Room() {
                             </svg>
                         </button>
 
-                        {/* Theme Toggle */}
-                        <button
-                            onClick={toggleTheme}
-                            className="btn-ghost text-sm p-2 hidden sm:flex"
-                            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                        >
-                            {theme === 'dark' ? (
-                                <svg className="w-5 h-5 text-text-muted hover:text-warning transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                                </svg>
-                            ) : (
-                                <svg className="w-5 h-5 text-text-muted hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                                </svg>
-                            )}
-                        </button>
-
                         <button
                             onClick={() => setShowHelp(true)}
                             className="btn-ghost text-sm p-2 hidden sm:flex"
@@ -310,15 +290,19 @@ export default function Room() {
                             <kbd className="text-xs font-mono bg-card px-1.5 py-0.5 rounded border border-border">?</kbd>
                         </button>
 
+                        {/* Sidebar toggle — visible on tablet/mobile only */}
                         <button
-                            onClick={() => setShowMembers(!showMembers)}
-                            className={`btn-ghost text-sm p-2 sm:px-3 ${showMembers ? 'bg-card border-border' : ''}`}
+                            onClick={() => setShowSidebar(prev => !prev)}
+                            className={`xl:hidden p-2 rounded-lg transition-colors ${showSidebar ? 'bg-primary/20 text-primary' : 'hover:bg-card-hover text-text-muted'
+                                }`}
+                            title="Toggle sidebar"
                         >
-                            <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
                             </svg>
-                            <span className="hidden sm:inline">Members ({onlineMembers.length})</span>
                         </button>
+
+                        <ThemeSwitcher />
 
                         {/* User Avatar / Profile Dropdown */}
                         {!isGuest ? (
@@ -335,7 +319,7 @@ export default function Room() {
                                     />
                                 </button>
                                 {showProfileMenu && (
-                                    <div className="absolute right-0 top-full mt-2 w-56 glass-card p-2 shadow-glow-lg animate-slide-up z-50">
+                                    <div className="absolute right-0 top-full mt-2 w-56 glass-card p-2 animate-fade-in z-50">
                                         <div className="flex items-center gap-3 p-3 border-b border-border mb-2">
                                             <img src={user?.avatar} alt="" className="w-9 h-9 rounded-full" referrerPolicy="no-referrer" />
                                             <div className="min-w-0">
@@ -377,12 +361,12 @@ export default function Room() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 pt-6 pb-12">
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 room-layout">
+            <main className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-6 pt-6 pb-12">
+                <div className="flex flex-col xl:flex-row gap-6">
                     {/* Left: Player + Queue */}
-                    <div className="space-y-6">
-                        {/* Player with emoji overlay */}
-                        <div ref={playerSectionRef} id="main-player" className="relative">
+                    <div className="flex-1 min-w-0 xl:min-w-[600px] space-y-6">
+                        {/* Player with emoji overlay — 16:9 ratio */}
+                        <div ref={playerSectionRef} id="main-player" className="relative aspect-video bg-base rounded-2xl overflow-hidden">
                             <PlayerComponent
                                 videoId={playerState.videoId}
                                 playerState={playerState.state}
@@ -395,7 +379,7 @@ export default function Room() {
                                 emitPlayerEnded={emitPlayerEnded}
                             />
                             {/* Floating emoji reactions overlay */}
-                            {!isGuest && <EmojiReactions socket={socket} />}
+                            {!isGuest && <EmojiOverlay socket={socket} />}
                         </div>
 
                         {/* Add Song — hidden for guests */}
@@ -440,31 +424,88 @@ export default function Room() {
                         </div>
                     </div>
 
-                    {/* Right Sidebar */}
-                    <div className="space-y-6">
-                        {/* Members (toggling on mobile) */}
-                        <div className={`${showMembers ? 'block' : 'hidden'} lg:block`}>
-                            <MembersList
-                                members={onlineMembers}
-                                isRoomOwner={isRoomOwner}
-                                currentUserId={user?.id}
-                                roomSlug={slug}
-                                socket={socket}
-                                onClose={() => setShowMembers(false)}
-                            />
+                    {/* Right Sidebar — Tabbed */}
+                    {/* Desktop: always visible, fixed 360px */}
+                    {/* Tablet/Mobile: overlay panel, toggled via header button */}
+                    <div className={`
+                        xl:w-[360px] xl:flex-shrink-0 xl:block xl:relative xl:bg-transparent xl:p-0
+                        ${showSidebar
+                            ? 'fixed inset-0 z-40 bg-black/60 xl:static xl:z-auto'
+                            : 'hidden xl:block'
+                        }
+                    `}
+                        onClick={(e) => { if (e.target === e.currentTarget) setShowSidebar(false); }}
+                    >
+                        <div className={`
+                            xl:sticky xl:top-20 flex flex-col
+                            ${showSidebar
+                                ? 'absolute right-0 top-0 bottom-0 w-[360px] max-w-[85vw] bg-base border-l border-border p-4 pt-6 animate-fade-in'
+                                : ''
+                            }
+                        `}>
+                            {/* Close button — mobile/tablet only */}
+                            {showSidebar && (
+                                <button
+                                    onClick={() => setShowSidebar(false)}
+                                    className="xl:hidden absolute top-3 right-3 p-1.5 rounded-lg hover:bg-card-hover text-text-muted"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+
+                            {/* Tab Bar */}
+                            <div className="flex gap-1 bg-surface rounded-xl p-1 mb-3">
+                                <button
+                                    onClick={() => setSidebarTab('chat')}
+                                    className={`flex-1 text-sm py-2 px-3 rounded-lg transition-colors duration-150 font-medium
+                                        ${sidebarTab === 'chat' ? 'bg-card text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
+                                >
+                                    Chat
+                                </button>
+                                <button
+                                    onClick={() => setSidebarTab('members')}
+                                    className={`flex-1 text-sm py-2 px-3 rounded-lg transition-colors duration-150 font-medium
+                                        ${sidebarTab === 'members' ? 'bg-card text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
+                                >
+                                    Members ({onlineMembers.length})
+                                </button>
+                                <button
+                                    onClick={() => setSidebarTab('stats')}
+                                    className={`flex-1 text-sm py-2 px-3 rounded-lg transition-colors duration-150 font-medium
+                                        ${sidebarTab === 'stats' ? 'bg-card text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
+                                >
+                                    Stats
+                                </button>
+                            </div>
+
+                            {/* Tab Content — fill remaining height */}
+                            <div className="flex-1 min-h-0">
+                                {sidebarTab === 'chat' && (
+                                    !isGuest ? (
+                                        <ChatBox socket={socket} />
+                                    ) : (
+                                        <div className="glass-card p-6 text-center">
+                                            <p className="text-text-muted text-sm">Login to join the chat</p>
+                                        </div>
+                                    )
+                                )}
+                                {sidebarTab === 'members' && (
+                                    <MembersList
+                                        members={onlineMembers}
+                                        isRoomOwner={isRoomOwner}
+                                        currentUserId={user?.id}
+                                        roomSlug={slug}
+                                        socket={socket}
+                                        onClose={() => setSidebarTab('chat')}
+                                    />
+                                )}
+                                {sidebarTab === 'stats' && (
+                                    <RoomStats slug={slug} />
+                                )}
+                            </div>
                         </div>
-
-                        {/* Chat — hidden for guests */}
-                        {!isGuest && <ChatBox socket={socket} />}
-
-                        {/* Lyrics Panel */}
-                        <LyricsPanel currentSong={currentSong} />
-
-                        {/* Activity Feed */}
-                        <ActivityFeed slug={slug} />
-
-                        {/* Room Stats */}
-                        <RoomStats slug={slug} />
                     </div>
                 </div>
             </main>
@@ -487,8 +528,8 @@ export default function Room() {
             {/* Share Modal (fallback) */}
             {showShareModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowShareModal(false)} />
-                    <div className="glass-card p-6 w-full max-w-sm relative z-10 animate-slide-up">
+                    <div className="absolute inset-0 bg-black/60" onClick={() => setShowShareModal(false)} />
+                    <div className="glass-card p-6 w-full max-w-sm relative z-10 animate-fade-in">
                         <h3 className="font-display text-lg font-bold mb-4 text-center">Share Room</h3>
 
                         {/* QR Code */}
@@ -535,7 +576,7 @@ export default function Room() {
             {/* Guest Login Banner */}
             {isGuest && (
                 <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border">
-                    <div className="bg-gradient-to-r from-primary/10 via-card to-primary/10 backdrop-blur-xl px-4 py-3">
+                    <div className="bg-card border-t border-border px-4 py-3">
                         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3 min-w-0">
                                 <span className="text-lg">🎧</span>
@@ -603,8 +644,8 @@ function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="glass-card p-6 w-full max-w-md relative z-10 animate-slide-up">
+            <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+            <div className="glass-card p-6 w-full max-w-md relative z-10 animate-fade-in">
                 <h3 className="font-display text-lg font-bold mb-5 flex items-center gap-2">
                     <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a7.723 7.723 0 0 1 0 .255c-.007.378.138.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />

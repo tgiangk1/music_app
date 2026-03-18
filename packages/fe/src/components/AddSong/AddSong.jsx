@@ -137,20 +137,21 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
 
                     {/* Search results */}
                     {results.length > 0 && (
-                        <div className="mt-3 space-y-1 max-h-80 overflow-y-auto scrollbar-thin">
-                            {results.map((video) => {
+                        <div className="mt-3 bg-surface rounded-xl border border-border overflow-hidden max-h-80 overflow-y-auto scrollbar-thin">
+                            {results.map((video, idx) => {
                                 const isDup = queueIds.has(video.videoId);
                                 return (
                                     <div
                                         key={video.videoId}
-                                        className={`flex items-center gap-3 p-2.5 rounded-xl transition-all group
+                                        className={`flex items-center gap-3 p-2.5 transition-colors group
+                      ${idx > 0 ? 'border-t border-border' : ''}
                       ${isDup ? 'opacity-50' : 'hover:bg-card-hover cursor-pointer'}`}
                                         onClick={() => !isDup && handleAddFromSearch(video)}
                                     >
-                                        <div className="flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden bg-card relative">
+                                        <div className="flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden bg-base relative">
                                             <img src={video.thumbnail} alt="" className="w-full h-full object-cover" />
                                             {video.duration && (
-                                                <span className="absolute bottom-0.5 right-0.5 bg-black/80 text-[10px] text-white px-1 rounded">
+                                                <span className="absolute bottom-0.5 right-0.5 bg-black/80 text-[10px] text-white px-1 rounded font-mono">
                                                     {video.duration}
                                                 </span>
                                             )}

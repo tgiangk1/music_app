@@ -30,7 +30,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }) {
 
             toast.custom((t) => (
                 <div
-                    className={`glass-card p-4 border-info/30 max-w-sm w-full shadow-glow-lg flex gap-3 cursor-pointer ${t.visible ? 'animate-fade-in' : 'animate-slide-up opacity-0'
+                    className={`glass-card p-4 border-info/30 max-w-sm w-full flex gap-3 cursor-pointer ${t.visible ? 'animate-fade-in' : 'animate-slide-up opacity-0'
                         }`}
                     onClick={() => {
                         toast.dismiss(t.id);

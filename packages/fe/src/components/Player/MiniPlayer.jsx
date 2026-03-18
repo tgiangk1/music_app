@@ -15,7 +15,7 @@ export default function MiniPlayer({
     if (!isVisible || !currentSong || !playerState.videoId) return null;
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-border/50 animate-slide-up">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border animate-slide-up">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3">
                 {/* Thumbnail */}
                 <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-card relative">

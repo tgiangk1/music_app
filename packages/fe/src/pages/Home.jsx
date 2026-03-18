@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { useTheme } from '../components/ThemeProvider';
+import ThemeSwitcher from '../components/ThemeSwitcher';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -14,7 +14,7 @@ export default function Home() {
     const [passwordRoom, setPasswordRoom] = useState(null); // Room needing password
 
     const isAdmin = user?.role === 'admin';
-    const { theme, toggleTheme } = useTheme();
+
 
     useEffect(() => {
         fetchRooms();
@@ -46,7 +46,7 @@ export default function Home() {
     return (
         <div className="min-h-screen">
             {/* Header */}
-            <header className="border-b border-border/50 bg-surface/50 backdrop-blur-xl sticky top-0 z-50">
+            <header className="border-b border-border bg-surface sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
@@ -77,22 +77,7 @@ export default function Home() {
                             <span className="text-sm text-text-secondary hidden sm:inline">{user?.displayName}</span>
                         </div>
 
-                        {/* Theme Toggle */}
-                        <button
-                            onClick={toggleTheme}
-                            className="p-2 rounded-lg hover:bg-card-hover transition-colors"
-                            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                        >
-                            {theme === 'dark' ? (
-                                <svg className="w-5 h-5 text-text-muted hover:text-warning transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                                </svg>
-                            ) : (
-                                <svg className="w-5 h-5 text-text-muted hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                                </svg>
-                            )}
-                        </button>
+                        <ThemeSwitcher />
 
                         <button onClick={handleLogout} className="text-sm text-text-muted hover:text-danger transition-colors px-3 py-2 rounded-lg hover:bg-danger/10">
                             Logout
@@ -144,13 +129,13 @@ export default function Home() {
                                 key={room.id}
                                 to={`/room/${room.slug}`}
                                 onClick={(e) => handleRoomClick(e, room)}
-                                className="glass-card-hover p-6 block animate-slide-up group"
+                                className="glass-card-hover p-6 block animate-fade-in group"
                                 style={{ animationDelay: `${i * 50}ms` }}
                             >
                                 {/* Room color accent */}
                                 <div className="flex items-start justify-between mb-4">
                                     <div
-                                        className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+                                        className="w-12 h-12 rounded-xl flex items-center justify-center"
                                         style={{ backgroundColor: `${room.cover_color}20` }}
                                     >
                                         <svg className="w-6 h-6" style={{ color: room.cover_color }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -216,10 +201,10 @@ function CreateRoomModal({ onClose, onCreated }) {
     const [isPublic, setIsPublic] = useState(true);
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [coverColor, setCoverColor] = useState('#8b5cf6');
+    const [coverColor, setCoverColor] = useState('rgb(var(--color-primary))');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const colors = ['#8b5cf6', '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#f97316', '#06b6d4'];
+    const colors = ['#c8a87c', '#8aad7c', '#c47a6a', '#6b9ec4', '#b89c6b', '#7ca5a5', '#c49a6b', '#9b8ab5'];
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -247,10 +232,10 @@ function CreateRoomModal({ onClose, onCreated }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
             {/* Modal */}
-            <div className="glass-card p-8 w-full max-w-lg relative z-10 animate-slide-up">
+            <div className="glass-card p-8 w-full max-w-lg relative z-10 animate-fade-in">
                 <h2 className="font-display text-xl font-bold mb-6">Create New Room</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
@@ -303,7 +288,7 @@ function CreateRoomModal({ onClose, onCreated }) {
                             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${isPublic ? 'left-6' : 'left-0.5'}`} />
                         </button>
                         <span className="text-sm text-text-secondary">
-                            {isPublic ? 'Public — anyone can join' : 'Private — invite only'}
+                            {isPublic ? 'Public — anyone can join' : 'Private — password required'}
                         </span>
                     </div>
 
@@ -314,7 +299,7 @@ function CreateRoomModal({ onClose, onCreated }) {
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                                 </svg>
-                                Room Password <span className="text-text-muted">(optional)</span>
+                                Room Password <span className="text-text-muted">{isPublic ? '(optional)' : '(required)'}</span>
                             </span>
                         </label>
                         <div className="relative">
@@ -323,7 +308,7 @@ function CreateRoomModal({ onClose, onCreated }) {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="input-field w-full pr-10"
-                                placeholder="Leave empty for no password"
+                                placeholder={isPublic ? 'Leave empty for no password' : 'Required for private rooms'}
                                 id="room-password-input"
                             />
                             <button
@@ -354,7 +339,7 @@ function CreateRoomModal({ onClose, onCreated }) {
                         </button>
                         <button
                             type="submit"
-                            disabled={isSubmitting || !name.trim()}
+                            disabled={isSubmitting || !name.trim() || (!isPublic && !password.trim())}
                             className="btn-primary flex-1 disabled:opacity-50"
                             id="create-room-submit"
                         >
@@ -392,8 +377,8 @@ function PasswordModal({ room, onClose, onSuccess }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="glass-card p-8 w-full max-w-sm relative z-10 animate-slide-up text-center">
+            <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+            <div className="glass-card p-8 w-full max-w-sm relative z-10 animate-fade-in text-center">
                 {/* Lock icon */}
                 <div
                     className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
