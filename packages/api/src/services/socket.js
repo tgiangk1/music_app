@@ -257,4 +257,3 @@ function logActivity(db, roomId, userId, actionType, metadata = {}) {
 }
 
 export { logActivity };
-export function getIO() { return io; }
