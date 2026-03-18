@@ -174,4 +174,25 @@ function runMigrations() {
     );
     CREATE INDEX IF NOT EXISTS idx_playlist_songs ON playlist_songs(playlist_id, position);
   `);
+
+  // Feature: Discover & Share
+  try { db.exec(`ALTER TABLE rooms ADD COLUMN genre TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE rooms ADD COLUMN tags TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE users ADD COLUMN bio TEXT`); } catch (e) { }
+  try { db.exec(`ALTER TABLE users ADD COLUMN favorite_genre TEXT`); } catch (e) { }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS room_schedules (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      scheduled_at TEXT NOT NULL,
+      notify_members INTEGER DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_schedules_room ON room_schedules(room_id, scheduled_at);
+  `);
 }
