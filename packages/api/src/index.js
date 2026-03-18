@@ -83,6 +83,29 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🎵 Antigravity Jukebox API running on port ${PORT}`);
+
+  // Background: backfill song_history duration=0
+  (async () => {
+    try {
+      const { getDb } = await import('./config/database.js');
+      const { fetchVideoMetadata } = await import('./services/youtube.js');
+      const db = getDb();
+      const zeroDuration = db.prepare('SELECT DISTINCT youtube_id FROM song_history WHERE duration = 0 OR duration IS NULL').all();
+      if (zeroDuration.length === 0) return;
+      console.log(`🔧 Backfilling duration for ${zeroDuration.length} songs...`);
+      let fixed = 0;
+      for (const { youtube_id } of zeroDuration) {
+        try {
+          const meta = await fetchVideoMetadata(youtube_id);
+          if (meta?.duration) {
+            db.prepare('UPDATE song_history SET duration = ? WHERE youtube_id = ? AND (duration = 0 OR duration IS NULL)').run(meta.duration, youtube_id);
+            fixed++;
+          }
+        } catch (e) { /* skip */ }
+      }
+      console.log(`✅ Backfilled duration for ${fixed}/${zeroDuration.length} songs`);
+    } catch (e) { console.error('Backfill error:', e.message); }
+  })();
 });
 
 export default app;

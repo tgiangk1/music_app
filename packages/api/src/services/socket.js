@@ -85,14 +85,22 @@ export function initSocketIO(server) {
             socket.nsp.emit('player:sync', stateObj);
         });
 
-        socket.on('player:skip', () => {
+        socket.on('player:skip', async () => {
             const canControl = socket.user.isOwner || socket.user.role === 'admin' || socket.user.roomRole === 'dj';
             if (!canControl) return socket.emit('notification', { type: 'warning', message: 'Only the room owner or DJs can skip songs' });
             const db = getDb();
             const current = db.prepare('SELECT * FROM songs WHERE room_id = ? AND is_playing = 1').get(socket.roomId);
             if (current) {
+                // Fix: fetch duration if 0
+                let duration = current.duration;
+                if (!duration && current.youtube_id) {
+                    try {
+                        const meta = await fetchVideoMetadata(current.youtube_id);
+                        if (meta?.duration) duration = meta.duration;
+                    } catch (e) { /* fallback to 0 */ }
+                }
                 const histId = uuidv4();
-                db.prepare(`INSERT INTO song_history (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(histId, current.room_id, current.youtube_id, current.title, current.thumbnail, current.duration, current.channel_name, current.added_by);
+                db.prepare(`INSERT INTO song_history (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(histId, current.room_id, current.youtube_id, current.title, current.thumbnail, duration, current.channel_name, current.added_by);
                 db.prepare('DELETE FROM songs WHERE id = ?').run(current.id);
             }
             const next = db.prepare(`SELECT * FROM songs WHERE room_id = ? ORDER BY vote_score DESC, position ASC, created_at ASC LIMIT 1`).get(socket.roomId);
@@ -115,8 +123,16 @@ export function initSocketIO(server) {
             const db = getDb();
             const current = db.prepare('SELECT * FROM songs WHERE room_id = ? AND is_playing = 1').get(socket.roomId);
             if (current) {
+                // Fix: fetch duration if 0
+                let duration = current.duration;
+                if (!duration && current.youtube_id) {
+                    try {
+                        const meta = await fetchVideoMetadata(current.youtube_id);
+                        if (meta?.duration) duration = meta.duration;
+                    } catch (e) { /* fallback to 0 */ }
+                }
                 const histId = uuidv4();
-                db.prepare(`INSERT INTO song_history (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(histId, current.room_id, current.youtube_id, current.title, current.thumbnail, current.duration, current.channel_name, current.added_by);
+                db.prepare(`INSERT INTO song_history (id, room_id, youtube_id, title, thumbnail, duration, channel_name, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(histId, current.room_id, current.youtube_id, current.title, current.thumbnail, duration, current.channel_name, current.added_by);
                 db.prepare('DELETE FROM songs WHERE id = ?').run(current.id);
             }
             let next = db.prepare(`SELECT * FROM songs WHERE room_id = ? ORDER BY vote_score DESC, position ASC, created_at ASC LIMIT 1`).get(socket.roomId);
