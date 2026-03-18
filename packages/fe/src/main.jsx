@@ -11,6 +11,7 @@ import Room from './pages/Room'
 import AdminPanel from './pages/AdminPanel'
 import Explore from './pages/Explore'
 import Profile from './pages/Profile'
+import Gamification from './pages/Gamification'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ThemeProvider } from './components/ThemeProvider'
 
@@ -36,6 +37,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     } />
                     <Route path="/explore" element={<Explore />} />
                     <Route path="/profile/:userId" element={<Profile />} />
+                    <Route path="/gamification" element={
+                        <ProtectedRoute>
+                            <Gamification />
+                        </ProtectedRoute>
+                    } />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </BrowserRouter>
