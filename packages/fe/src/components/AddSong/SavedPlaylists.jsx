@@ -10,19 +10,34 @@ export default function SavedPlaylists({ slug }) {
         fetchPlaylists,
         deletePlaylist,
         importPlaylist,
-        pushPlaylistToRoom
+        pushPlaylistToRoom,
+        saveQueueAsPlaylist
     } = usePlaylistStore();
 
     const [isImporting, setIsImporting] = useState(false);
     const [importUrl, setImportUrl] = useState('');
     const [pushingId, setPushingId] = useState(null);
     const [expandedId, setExpandedId] = useState(null);
-    const [playlistDetails, setPlaylistDetails] = useState({}); // id -> { playlist, songs }
+    const [playlistDetails, setPlaylistDetails] = useState({});
     const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+    const [isSavingQueue, setIsSavingQueue] = useState(false);
 
     useEffect(() => {
         fetchPlaylists();
     }, [fetchPlaylists]);
+
+    const handleSaveQueue = async () => {
+        if (isSavingQueue) return;
+        setIsSavingQueue(true);
+        try {
+            const playlist = await saveQueueAsPlaylist(slug);
+            toast.success(`Queue saved as "${playlist.name}"`);
+        } catch (err) {
+            toast.error(err.message);
+        } finally {
+            setIsSavingQueue(false);
+        }
+    };
 
     const handleImport = async (e) => {
         e.preventDefault();
@@ -130,6 +145,18 @@ export default function SavedPlaylists({ slug }) {
                     {isImporting ? 'Saving...' : 'Save Playlist'}
                 </button>
             </form>
+
+            {/* Save Current Queue */}
+            <button
+                onClick={handleSaveQueue}
+                disabled={isSavingQueue}
+                className="w-full btn-ghost text-sm border border-dashed border-border hover:border-primary hover:text-primary transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+                {isSavingQueue ? 'Saving...' : 'Save Current Queue as Playlist'}
+            </button>
 
             <div className="border-t border-border/50 pt-4">
                 <h3 className="text-sm font-semibold text-text-secondary mb-3">Your Saved Playlists</h3>
