@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎧 Music Room UI — Color Palette Brainstorm</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: #111;
+            color: #e8e4df;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+            color: #f5f0eb;
+        }
+
+        .header p {
+            color: #8a8278;
+            font-size: 0.95rem;
+        }
+
+        .palettes {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .palette {
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: transform 0.2s, border-color 0.3s;
+            cursor: pointer;
+        }
+
+        .palette:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .palette.selected {
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
+        }
+
+        .palette-label {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .palette-label .letter {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            color: #111;
+        }
+
+        .palette-label h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.1rem;
+        }
+
+        .palette-label p {
+            font-size: 0.8rem;
+            opacity: 0.5;
+            margin-left: auto;
+        }
+
+        /* Color swatches */
+        .swatches {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0;
+        }
+
+        .swatch {
+            height: 56px;
+            position: relative;
+        }
+
+        .swatch span {
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.55rem;
+            opacity: 0.7;
+            white-space: nowrap;
+        }
+
+        /* Mini mockup demo */
+        .mockup-demo {
+            padding: 1.5rem;
+        }
+
+        .mini-room {
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid;
+        }
+
+        .mini-header {
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .mini-header .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .mini-body {
+            display: grid;
+            grid-template-columns: 1fr 120px;
+            gap: 0.75rem;
+            padding: 1rem;
+        }
+
+        .mini-player {
+            border-radius: 0.5rem;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mini-player::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+        }
+
+        .mini-queue {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .mini-song {
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.65rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .mini-song .duration {
+            margin-left: auto;
+            opacity: 0.4;
+        }
+
+        /* Buttons preview */
+        .btn-preview {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .mini-btn {
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* Token list */
+        .tokens {
+            padding: 0 1.5rem 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .token {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .token .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        /* ===== PALETTE A: Warm Espresso ===== */
+        .palette-a {
+            background: #1a1612;
+        }
+
+        .palette-a .palette-label {
+            background: #1e1a15;
+        }
+
+        .palette-a .letter {
+            background: #c8a87c;
+        }
+
+        .palette-a .mini-room {
+            background: #1e1a15;
+            border-color: rgba(200, 168, 124, 0.08);
+        }
+
+        .palette-a .mini-header {
+            background: #231f19;
+            border-color: rgba(200, 168, 124, 0.08);
+            color: #d4c4a8;
+        }
+
+        .palette-a .mini-header .dot {
+            background: #7c9a6e;
+        }
+
+        .palette-a .mini-player {
+            background: #231f19;
+        }
+
+        .palette-a .mini-song {
+            background: rgba(200, 168, 124, 0.06);
+            color: #b8a890;
+        }
+
+        .palette-a .mini-btn.primary {
+            background: #c8a87c;
+            color: #1a1612;
+        }
+
+        .palette-a .mini-btn.ghost {
+            background: rgba(200, 168, 124, 0.08);
+            color: #a89880;
+            border: 1px solid rgba(200, 168, 124, 0.1);
+        }
+
+        /* ===== PALETTE B: Muted Sage ===== */
+        .palette-b {
+            background: #151917;
+        }
+
+        .palette-b .palette-label {
+            background: #1a1e1c;
+        }
+
+        .palette-b .letter {
+            background: #8fa88a;
+        }
+
+        .palette-b .mini-room {
+            background: #1a1e1c;
+            border-color: rgba(143, 168, 138, 0.08);
+        }
+
+        .palette-b .mini-header {
+            background: #1e2320;
+            border-color: rgba(143, 168, 138, 0.08);
+            color: #b0c4ab;
+        }
+
+        .palette-b .mini-header .dot {
+            background: #8fa88a;
+        }
+
+        .palette-b .mini-player {
+            background: #1e2320;
+        }
+
+        .palette-b .mini-song {
+            background: rgba(143, 168, 138, 0.06);
+            color: #96ab92;
+        }
+
+        .palette-b .mini-btn.primary {
+            background: #8fa88a;
+            color: #151917;
+        }
+
+        .palette-b .mini-btn.ghost {
+            background: rgba(143, 168, 138, 0.08);
+            color: #7a9276;
+            border: 1px solid rgba(143, 168, 138, 0.1);
+        }
+
+        /* ===== PALETTE C: Smoky Amber ===== */
+        .palette-c {
+            background: #181614;
+        }
+
+        .palette-c .palette-label {
+            background: #1d1b18;
+        }
+
+        .palette-c .letter {
+            background: #d4a574;
+        }
+
+        .palette-c .mini-room {
+            background: #1d1b18;
+            border-color: rgba(212, 165, 116, 0.08);
+        }
+
+        .palette-c .mini-header {
+            background: #222018;
+            border-color: rgba(212, 165, 116, 0.08);
+            color: #c8b496;
+        }
+
+        .palette-c .mini-header .dot {
+            background: #8aad7c;
+        }
+
+        .palette-c .mini-player {
+            background: #222018;
+        }
+
+        .palette-c .mini-song {
+            background: rgba(212, 165, 116, 0.06);
+            color: #a89678;
+        }
+
+        .palette-c .mini-btn.primary {
+            background: #d4a574;
+            color: #181614;
+        }
+
+        .palette-c .mini-btn.ghost {
+            background: rgba(212, 165, 116, 0.08);
+            color: #9a8a70;
+            border: 1px solid rgba(212, 165, 116, 0.1);
+        }
+
+        /* Selection indicator */
+        .selected-indicator {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 28, 24, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1.5rem;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            z-index: 100;
+        }
+
+        .selected-indicator.show {
+            display: flex;
+        }
+
+        .selected-indicator .check {
+            color: #7c9a6e;
+        }
+
+        @media (max-width: 900px) {
+            .palettes {
+                grid-template-columns: 1fr;
+                max-width: 500px;
+            }
+
+            body {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🎧 Color Palette — Lo-fi Music Room</h1>
+        <p>Click vào palette anh thích nhất. Tất cả đều dark, warm, và muted.</p>
+    </div>
+
+    <div class="palettes">
+        <!-- PALETTE A: Warm Espresso -->
+        <div class="palette palette-a" onclick="selectPalette(this, 'A')">
+            <div class="palette-label">
+                <div class="letter">A</div>
+                <h2>Warm Espresso</h2>
+                <p>☕ coffee tones</p>
+            </div>
+
+            <div class="swatches">
+                <div class="swatch" style="background:#1a1612"><span>#1a1612</span></div>
+                <div class="swatch" style="background:#231f19"><span>#231f19</span></div>
+                <div class="swatch" style="background:#c8a87c"><span>#c8a87c</span></div>
+                <div class="swatch" style="background:#7c9a6e"><span>#7c9a6e</span></div>
+                <div class="swatch" style="background:#b8a890"><span>#b8a890</span></div>
+            </div>
+
+            <div class="mockup-demo">
+                <div class="mini-room">
+                    <div class="mini-header">
+                        <div class="dot"></div>
+                        Chill Room · 3 online
+                    </div>
+                    <div class="mini-body">
+                        <div class="mini-player">🎵</div>
+                        <div class="mini-queue">
+                            <div class="mini-song">♪ Lofi beats <span class="duration">3:42</span></div>
+                            <div class="mini-song">♪ Rainy café <span class="duration">4:15</span></div>
+                            <div class="mini-song">♪ Late night <span class="duration">2:58</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-preview">
+                    <button class="mini-btn primary">Add Song</button>
+                    <button class="mini-btn ghost">Queue</button>
+                    <button class="mini-btn ghost">History</button>
+                </div>
+            </div>
+
+            <div class="tokens">
+                <div class="token">
+                    <div class="dot" style="background:#1a1612"></div>base
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#231f19"></div>surface
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#2a2520"></div>card
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#c8a87c"></div>primary
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#7c9a6e"></div>success
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#b8a890"></div>text-sec
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#6b6158"></div>muted
+                </div>
+            </div>
+        </div>
+
+        <!-- PALETTE B: Muted Sage -->
+        <div class="palette palette-b" onclick="selectPalette(this, 'B')">
+            <div class="palette-label">
+                <div class="letter">B</div>
+                <h2>Muted Sage</h2>
+                <p>🌿 earthy greens</p>
+            </div>
+
+            <div class="swatches">
+                <div class="swatch" style="background:#151917"><span>#151917</span></div>
+                <div class="swatch" style="background:#1e2320"><span>#1e2320</span></div>
+                <div class="swatch" style="background:#8fa88a"><span>#8fa88a</span></div>
+                <div class="swatch" style="background:#c4a96e"><span>#c4a96e</span></div>
+                <div class="swatch" style="background:#96ab92"><span>#96ab92</span></div>
+            </div>
+
+            <div class="mockup-demo">
+                <div class="mini-room">
+                    <div class="mini-header">
+                        <div class="dot"></div>
+                        Chill Room · 3 online
+                    </div>
+                    <div class="mini-body">
+                        <div class="mini-player">🎵</div>
+                        <div class="mini-queue">
+                            <div class="mini-song">♪ Lofi beats <span class="duration">3:42</span></div>
+                            <div class="mini-song">♪ Rainy café <span class="duration">4:15</span></div>
+                            <div class="mini-song">♪ Late night <span class="duration">2:58</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-preview">
+                    <button class="mini-btn primary">Add Song</button>
+                    <button class="mini-btn ghost">Queue</button>
+                    <button class="mini-btn ghost">History</button>
+                </div>
+            </div>
+
+            <div class="tokens">
+                <div class="token">
+                    <div class="dot" style="background:#151917"></div>base
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#1e2320"></div>surface
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#242a27"></div>card
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#8fa88a"></div>primary
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#c4a96e"></div>accent
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#96ab92"></div>text-sec
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#5a6b58"></div>muted
+                </div>
+            </div>
+        </div>
+
+        <!-- PALETTE C: Smoky Amber -->
+        <div class="palette palette-c" onclick="selectPalette(this, 'C')">
+            <div class="palette-label">
+                <div class="letter">C</div>
+                <h2>Smoky Amber</h2>
+                <p>🥃 whiskey warm</p>
+            </div>
+
+            <div class="swatches">
+                <div class="swatch" style="background:#181614"><span>#181614</span></div>
+                <div class="swatch" style="background:#222018"><span>#222018</span></div>
+                <div class="swatch" style="background:#d4a574"><span>#d4a574</span></div>
+                <div class="swatch" style="background:#8aad7c"><span>#8aad7c</span></div>
+                <div class="swatch" style="background:#a89678"><span>#a89678</span></div>
+            </div>
+
+            <div class="mockup-demo">
+                <div class="mini-room">
+                    <div class="mini-header">
+                        <div class="dot"></div>
+                        Chill Room · 3 online
+                    </div>
+                    <div class="mini-body">
+                        <div class="mini-player">🎵</div>
+                        <div class="mini-queue">
+                            <div class="mini-song">♪ Lofi beats <span class="duration">3:42</span></div>
+                            <div class="mini-song">♪ Rainy café <span class="duration">4:15</span></div>
+                            <div class="mini-song">♪ Late night <span class="duration">2:58</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-preview">
+                    <button class="mini-btn primary">Add Song</button>
+                    <button class="mini-btn ghost">Queue</button>
+                    <button class="mini-btn ghost">History</button>
+                </div>
+            </div>
+
+            <div class="tokens">
+                <div class="token">
+                    <div class="dot" style="background:#181614"></div>base
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#222018"></div>surface
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#2a2720"></div>card
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#d4a574"></div>primary
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#8aad7c"></div>success
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#a89678"></div>text-sec
+                </div>
+                <div class="token">
+                    <div class="dot" style="background:#635a4e"></div>muted
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="selected-indicator" id="indicator">
+        <span class="check">✓</span>
+        <span id="indicator-text">Selected: —</span>
+    </div>
+
+    <script>
+        let selected = null;
+        function selectPalette(el, name) {
+            document.querySelectorAll('.palette').forEach(p => p.classList.remove('selected'));
+            el.classList.add('selected');
+            selected = name;
+            document.getElementById('indicator').classList.add('show');
+            document.getElementById('indicator-text').textContent = 'Selected: Palette ' + name + ' — ' + el.querySelector('h2').textContent;
+        }
+    </script>
+</body>
+
+</html>

@@ -45,7 +45,7 @@ router.get('/', verifyToken, (req, res) => {
 
 // Create room
 router.post('/', verifyToken, (req, res) => {
-    const { name, description, isPublic = true, coverColor = 'rgb(var(--color-primary))', password } = req.body;
+    const { name, description, isPublic = true, coverColor = 'rgb(var(--color-primary))', password, roomIcon = '🎵' } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Room name is required' });
     const roomPassword = password && password.trim() ? password.trim() : null;
     // Private rooms MUST have a password
@@ -55,7 +55,7 @@ router.post('/', verifyToken, (req, res) => {
     let slug = slugify(name);
     const existing = db.prepare('SELECT id FROM rooms WHERE slug = ?').get(slug);
     if (existing) slug = `${slug}-${id.slice(0, 6)}`;
-    db.prepare(`INSERT INTO rooms (id, name, slug, description, cover_color, is_public, room_password, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, name.trim(), slug, description || null, coverColor, isPublic ? 1 : 0, roomPassword, req.user.userId);
+    db.prepare(`INSERT INTO rooms (id, name, slug, description, cover_color, room_icon, is_public, room_password, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, name.trim(), slug, description || null, coverColor, roomIcon, isPublic ? 1 : 0, roomPassword, req.user.userId);
     db.prepare('INSERT INTO room_members (room_id, user_id) VALUES (?, ?)').run(id, req.user.userId);
     const room = db.prepare('SELECT * FROM rooms WHERE id = ?').get(id);
     const { room_password, ...safeRoom } = room;
@@ -121,12 +121,13 @@ router.post('/:slug/join', verifyToken, (req, res) => {
 // Update room
 router.patch('/:slug', verifyToken, requireRoomOwnerOrAdmin, (req, res) => {
     const room = req.room;
-    const { name, description, isPublic, coverColor, songLimit, password } = req.body;
+    const { name, description, isPublic, coverColor, songLimit, password, roomIcon } = req.body;
     const updates = {};
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description;
     if (isPublic !== undefined) updates.is_public = isPublic ? 1 : 0;
     if (coverColor !== undefined) updates.cover_color = coverColor;
+    if (roomIcon !== undefined) updates.room_icon = roomIcon;
     if (songLimit !== undefined) updates.song_limit = Math.max(0, parseInt(songLimit) || 0);
     if (password !== undefined) updates.room_password = password && password.trim() ? password.trim() : null;
     // Private rooms MUST have a password

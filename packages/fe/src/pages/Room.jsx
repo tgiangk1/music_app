@@ -17,7 +17,7 @@ import { EmojiOverlay } from '../components/Social/EmojiReactions';
 import ChatBox from '../components/Social/ChatBox';
 import RoomStats from '../components/Social/RoomStats';
 import ThemeSwitcher from '../components/ThemeSwitcher';
-import { generateQRCode } from '../lib/qrcode';
+import { generateQRCode, generateQRDataURL } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -189,16 +189,58 @@ export default function Room() {
         return () => { document.title = 'Antigravity Jukebox'; };
     }, [currentSong?.title, room?.name]);
 
+    // Now Playing toast — show when a new song starts playing
+    const prevSongIdRef = useRef(null);
+    useEffect(() => {
+        if (!currentSong) return;
+        if (prevSongIdRef.current === null) {
+            // First load — remember but don't toast
+            prevSongIdRef.current = currentSong.id;
+            return;
+        }
+        if (currentSong.id === prevSongIdRef.current) return;
+        prevSongIdRef.current = currentSong.id;
+        toast((
+            <div className="flex items-center gap-3">
+                <img
+                    src={currentSong.thumbnail || `https://img.youtube.com/vi/${currentSong.youtube_id}/default.jpg`}
+                    alt=""
+                    className="w-10 h-10 rounded-lg object-cover"
+                />
+                <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{currentSong.title}</p>
+                    <p className="text-xs text-gray-400">Now playing</p>
+                </div>
+            </div>
+        ), { duration: 3000, icon: '🎵', style: { background: '#1e1e2e', color: '#fff', borderRadius: '12px' } });
+    }, [currentSong?.id]);
+
     // Share Room Link
     const handleShareRoom = async () => {
         const roomUrl = `${window.location.origin}/room/${slug}`;
-        try {
-            await navigator.clipboard.writeText(roomUrl);
-            toast.success('Room link copied to clipboard!');
-        } catch {
-            // Fallback for older browsers
-            setShowShareModal(true);
+        // Mobile: use native share sheet if available
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: `${room?.name} — Antigravity Jukebox`,
+                    text: `Join my music room: ${room?.name}`,
+                    url: roomUrl,
+                });
+                return;
+            } catch { /* user cancelled or share failed, show modal */ }
         }
+        setShowShareModal(true);
+    };
+
+    const handleDownloadQR = async () => {
+        const roomUrl = `${window.location.origin}/room/${slug}`;
+        const dataUrl = await generateQRDataURL(roomUrl);
+        if (!dataUrl) return toast.error('Failed to generate QR');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `${room?.name || 'room'}-qr.png`;
+        a.click();
+        toast.success('QR code downloaded!');
     };
 
     if (isLoading) {
@@ -225,11 +267,9 @@ export default function Room() {
                         </Link>
                         <div
                             className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: `${room?.cover_color}20` }}
+                            style={{ background: room?.cover_color?.startsWith('linear') ? room?.cover_color : `${room?.cover_color}20` }}
                         >
-                            <svg className="w-4 h-4" style={{ color: room?.cover_color }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
-                            </svg>
+                            <span className="text-sm">{room?.room_icon || '🎵'}</span>
                         </div>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
@@ -525,7 +565,7 @@ export default function Room() {
                 isRoomOwner={isRoomOwner}
             />
 
-            {/* Share Modal (fallback) */}
+            {/* Share Modal */}
             {showShareModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60" onClick={() => setShowShareModal(false)} />
@@ -544,7 +584,8 @@ export default function Room() {
                         </div>
                         <p className="text-center text-xs text-text-muted mb-4">Scan QR code or copy link below</p>
 
-                        <div className="flex gap-2">
+                        {/* Link + Copy */}
+                        <div className="flex gap-2 mb-3">
                             <input
                                 type="text"
                                 readOnly
@@ -555,20 +596,32 @@ export default function Room() {
                             <button
                                 onClick={() => {
                                     navigator.clipboard.writeText(`${window.location.origin}/room/${slug}`);
-                                    toast.success('Copied!');
-                                    setShowShareModal(false);
+                                    toast.success('Link copied!');
                                 }}
                                 className="btn-primary text-sm"
                             >
                                 Copy
                             </button>
                         </div>
-                        <button
-                            onClick={() => setShowShareModal(false)}
-                            className="btn-ghost w-full mt-3 text-sm"
-                        >
-                            Close
-                        </button>
+
+                        {/* Action buttons */}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleDownloadQR}
+                                className="btn-ghost flex-1 text-sm flex items-center justify-center gap-1.5"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                                Download QR
+                            </button>
+                            <button
+                                onClick={() => setShowShareModal(false)}
+                                className="btn-ghost flex-1 text-sm"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
