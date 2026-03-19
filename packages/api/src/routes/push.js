@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../config/database.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { verifyToken } from '../middlewares/auth.js';
 import { vapidPublicKey } from '../services/push.js';
 
 const router = Router();
@@ -15,14 +15,14 @@ router.get('/vapid-key', (req, res) => {
 });
 
 // POST /api/push/subscribe — save push subscription
-router.post('/subscribe', authMiddleware, (req, res) => {
+router.post('/subscribe', verifyToken, (req, res) => {
     const { subscription } = req.body;
     if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
         return res.status(400).json({ error: 'Invalid subscription object' });
     }
 
     const db = getDb();
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     // Upsert: replace if same endpoint exists
     const existing = db.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').get(subscription.endpoint);
@@ -39,7 +39,7 @@ router.post('/subscribe', authMiddleware, (req, res) => {
 });
 
 // DELETE /api/push/subscribe — remove push subscription
-router.delete('/subscribe', authMiddleware, (req, res) => {
+router.delete('/subscribe', verifyToken, (req, res) => {
     const { endpoint } = req.body;
     if (!endpoint) {
         return res.status(400).json({ error: 'endpoint required' });
@@ -47,16 +47,16 @@ router.delete('/subscribe', authMiddleware, (req, res) => {
 
     const db = getDb();
     db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?')
-        .run(endpoint, req.user.id);
+        .run(endpoint, req.user.userId);
 
     res.json({ success: true });
 });
 
 // GET /api/push/status — check if current user has active subscription
-router.get('/status', authMiddleware, (req, res) => {
+router.get('/status', verifyToken, (req, res) => {
     const db = getDb();
     const count = db.prepare('SELECT COUNT(*) as count FROM push_subscriptions WHERE user_id = ?')
-        .get(req.user.id);
+        .get(req.user.userId);
     res.json({ subscribed: count.count > 0 });
 });
 

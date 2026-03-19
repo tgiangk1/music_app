@@ -220,14 +220,6 @@ export function initSocketIO(server) {
                 }
             }
 
-            // Detect @mentions in content
-            const mentionRegex = /@([^\s@]+(?:\s[^\s@]+)?)/g;
-            const mentions = [];
-            let match;
-            while ((match = mentionRegex.exec(content)) !== null) {
-                mentions.push(match[1]);
-            }
-
             const message = { id, content, songTitle: playingSong?.title || null, replyTo, replyMessage, user: { userId: socket.user.userId, displayName: socket.user.displayName, avatar: socket.user.avatar }, createdAt: new Date().toISOString() };
             socket.nsp.emit('chat:new', message);
             logActivity(db, socket.roomId, socket.user.userId, 'chat', { messageId: id });
@@ -255,35 +247,57 @@ export function initSocketIO(server) {
                 }).catch(() => { });
             }
 
-            // Create notifications + push for mentioned users
-            if (mentions.length > 0) {
-                for (const mentionName of mentions) {
-                    const mentionedUser = db.prepare('SELECT id FROM users WHERE display_name = ? COLLATE NOCASE').get(mentionName);
-                    if (mentionedUser && mentionedUser.id !== socket.user.userId) {
-                        const notifId = uuidv4();
-                        try {
-                            db.prepare(`INSERT INTO room_notifications (id, room_id, user_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)`).run(
-                                notifId, socket.roomId, mentionedUser.id, 'mention',
-                                `${socket.user.displayName} mentioned you`,
-                                `in ${room?.name || 'a room'}: "${content.slice(0, 80)}"`
-                            );
-                        } catch (e) { /* table may not exist yet */ }
-                        // Emit to the mentioned user if they're online in global namespace
-                        io.emit('notification:mention', { userId: mentionedUser.id, roomSlug: room?.slug, from: socket.user.displayName, content: content.slice(0, 80) });
+            // Detect @mentions: query all room members + owner, check if their name appears in message
+            // This approach correctly handles multi-word display names
+            if (content.includes('@')) {
+                const memberUserIds = roomMembers.map(m => m.user_id);
+                if (!memberUserIds.includes(socket.roomOwnerId)) memberUserIds.push(socket.roomOwnerId);
+                const placeholders = memberUserIds.map(() => '?').join(',');
+                const candidateUsers = memberUserIds.length > 0
+                    ? db.prepare(`SELECT id, display_name FROM users WHERE id IN (${placeholders})`).all(...memberUserIds)
+                    : [];
 
-                        // Push notification for mention (even if online — important notification)
-                        if (!onlineUserIds.has(mentionedUser.id)) {
-                            import('./push.js').then(({ sendPushToUser }) => {
-                                sendPushToUser(mentionedUser.id, {
-                                    title: `${socket.user.displayName} mentioned you`,
-                                    body: `in ${room?.name || 'a room'}: "${content.slice(0, 100)}"`,
-                                    icon: socket.user.avatar || '/icon-192.png',
-                                    url: `/room/${room?.slug || socket.roomId}`,
-                                    tag: `mention-${socket.roomId}`,
-                                });
-                            }).catch(() => { });
+                const contentLower = content.toLowerCase();
+                for (const candidate of candidateUsers) {
+                    if (candidate.id === socket.user.userId) continue;
+                    const mentionText = `@${candidate.display_name}`.toLowerCase();
+                    if (!contentLower.includes(mentionText)) continue;
+
+                    const notifId = uuidv4();
+                    try {
+                        db.prepare(`INSERT INTO room_notifications (id, room_id, user_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)`).run(
+                            notifId, socket.roomId, candidate.id, 'mention',
+                            `${socket.user.displayName} mentioned you`,
+                            `in ${room?.name || 'a room'}: "${content.slice(0, 80)}"`
+                        );
+                    } catch (e) { /* table may not exist yet */ }
+
+                    // Emit real-time mention to the specific user's socket(s) in this room
+                    const roomNspName = socket.nsp.name;
+                    const targetNsp = io.of(roomNspName);
+                    for (const [, targetSocket] of targetNsp.sockets) {
+                        if (targetSocket.user?.userId === candidate.id) {
+                            targetSocket.emit('notification:mention', {
+                                userId: candidate.id,
+                                roomSlug: room?.slug,
+                                from: socket.user.displayName,
+                                content: content.slice(0, 80),
+                            });
                         }
                     }
+                    // Also emit via global namespace for users in OTHER rooms / pages
+                    io.emit('notification:mention', { userId: candidate.id, roomSlug: room?.slug, from: socket.user.displayName, content: content.slice(0, 80) });
+
+                    // Push notification for mention — always send (mention is important even if online)
+                    import('./push.js').then(({ sendPushToUser }) => {
+                        sendPushToUser(candidate.id, {
+                            title: `${socket.user.displayName} mentioned you`,
+                            body: `in ${room?.name || 'a room'}: "${content.slice(0, 100)}"`,
+                            icon: socket.user.avatar || '/icon-192.png',
+                            url: `/room/${room?.slug || socket.roomId}`,
+                            tag: `mention-${socket.roomId}`,
+                        });
+                    }).catch(() => { });
                 }
             }
         });

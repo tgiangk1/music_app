@@ -1,11 +1,88 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
 
 const REACTION_EMOJIS = ['🔥', '❤️', '😂', '👏', '🎵', '💀', '🥲', '🤩', '👀', '💜'];
 const MAX_MESSAGES = 150;
 
+// --- Shared AudioContext (handles browser autoplay policy) ---
+let _audioCtx = null;
+function getAudioCtx() {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    return _audioCtx;
+}
+// Unlock AudioContext on first user interaction
+if (typeof window !== 'undefined') {
+    const unlock = () => {
+        getAudioCtx();
+        document.removeEventListener('click', unlock);
+        document.removeEventListener('keydown', unlock);
+    };
+    document.addEventListener('click', unlock, { once: true });
+    document.addEventListener('keydown', unlock, { once: true });
+}
+
+function playMessageSound() {
+    try {
+        const ctx = getAudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(660, ctx.currentTime);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.2);
+    } catch { /* audio not available */ }
+}
+
+function playMentionSound() {
+    try {
+        const ctx = getAudioCtx();
+        // First beep
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(880, ctx.currentTime);
+        gain1.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        osc1.start(ctx.currentTime);
+        osc1.stop(ctx.currentTime + 0.15);
+        // Second beep (higher pitch, slight delay)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1320, ctx.currentTime + 0.18);
+        gain2.gain.setValueAtTime(0.01, ctx.currentTime);
+        gain2.gain.setValueAtTime(0.3, ctx.currentTime + 0.18);
+        gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc2.start(ctx.currentTime + 0.18);
+        osc2.stop(ctx.currentTime + 0.4);
+    } catch { /* audio not available */ }
+}
+
+function showBrowserNotification(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        const notif = new Notification(title, {
+            body, icon: '/favicon.png', badge: '/favicon.png',
+            silent: true, tag: `soundden-${Date.now()}`, renotify: true,
+        });
+        notif.onclick = () => { window.focus(); notif.close(); };
+        setTimeout(() => notif.close(), 6000);
+    } catch { /* not available */ }
+}
+
 /**
- * Room Chat with reply and @mention support
+ * Room Chat with reply, @mention, audio & browser notifications
  */
 export default function ChatBox({ socket, onlineMembers = [] }) {
     const [messages, setMessages] = useState([]);
@@ -15,11 +92,52 @@ export default function ChatBox({ socket, onlineMembers = [] }) {
     const [replyTo, setReplyTo] = useState(null);
     const [mentionQuery, setMentionQuery] = useState(null);
     const [mentionIndex, setMentionIndex] = useState(0);
+    const [unreadCount, setUnreadCount] = useState(0);
     const chatContainerRef = useRef(null);
     const emojiPickerRef = useRef(null);
     const inputRef = useRef(null);
     const mentionDropdownRef = useRef(null);
+    const originalTitleRef = useRef(document.title);
+    const flashIntervalRef = useRef(null);
     const user = useAuthStore(s => s.user);
+    const navigate = useNavigate();
+
+    // Request notification permission on mount
+    useEffect(() => {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    // Reset unread count when tab becomes visible
+    useEffect(() => {
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                setUnreadCount(0);
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, []);
+
+    // Tab title flash when unread messages
+    useEffect(() => {
+        if (unreadCount > 0 && document.visibilityState === 'hidden') {
+            const saved = originalTitleRef.current;
+            let showing = false;
+            flashIntervalRef.current = setInterval(() => {
+                document.title = showing ? saved : `🔔 (${unreadCount}) New messages`;
+                showing = !showing;
+            }, 1500);
+            return () => {
+                clearInterval(flashIntervalRef.current);
+                document.title = saved;
+            };
+        } else if (unreadCount === 0 && flashIntervalRef.current) {
+            clearInterval(flashIntervalRef.current);
+            flashIntervalRef.current = null;
+        }
+    }, [unreadCount]);
 
     useEffect(() => {
         if (!socket) return;
@@ -29,14 +147,78 @@ export default function ChatBox({ socket, onlineMembers = [] }) {
     useEffect(() => {
         if (!socket) return;
         const onHistory = (data) => setMessages(data.slice(-MAX_MESSAGES));
-        const onNew = (msg) => setMessages(prev => [...prev, msg].slice(-MAX_MESSAGES));
+        const onNew = (msg) => {
+            setMessages(prev => [...prev, msg].slice(-MAX_MESSAGES));
+
+            // Get sender ID — handle both `msg.user_id` and `msg.user.userId` formats
+            const senderId = msg.user_id || msg.user?.userId;
+
+            // Skip own messages
+            if (senderId === user?.id) return;
+
+            const content = msg.content || '';
+            const senderName = msg.display_name || msg.user?.displayName || 'Someone';
+
+            // Check if current user is @mentioned in this message
+            const isMentioned = user?.displayName &&
+                content.toLowerCase().includes(`@${user.displayName.toLowerCase()}`);
+
+            if (isMentioned) {
+                // MENTION: always play loud sound + toast (even when tab visible)
+                playMentionSound();
+                showBrowserNotification(
+                    `${senderName} mentioned you`,
+                    `"${content.slice(0, 80)}"`,
+                );
+                if (document.visibilityState === 'hidden') {
+                    setUnreadCount(prev => prev + 1);
+                }
+                toast.custom((t) => (
+                    <div
+                        className={`max-w-sm w-full flex gap-3 cursor-pointer transition-all ${t.visible ? 'animate-fade-in' : 'opacity-0'}`}
+                        style={{
+                            background: 'linear-gradient(135deg, #1e1b2e 0%, #16131f 100%)',
+                            border: '1px solid rgba(139,92,246,0.35)',
+                            borderRadius: '16px',
+                            padding: '14px 16px',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                        }}
+                        onClick={() => { toast.dismiss(t.id); }}
+                    >
+                        <div style={{
+                            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                            background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 20, fontWeight: 'bold', color: 'white',
+                        }}>@</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: '#a78bfa', marginBottom: 2 }}>
+                                {senderName} mentioned you
+                            </p>
+                            <p style={{ fontSize: 13, color: '#e2e0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                &quot;{content.slice(0, 80)}&quot;
+                            </p>
+                        </div>
+                    </div>
+                ), { duration: 6000, position: 'top-right', id: `mention-${Date.now()}` });
+            } else if (document.visibilityState === 'hidden') {
+                // Regular message when tab hidden → soft ding + browser notification
+                playMessageSound();
+                showBrowserNotification(
+                    `${senderName} in chat`,
+                    content.slice(0, 100) || 'New message',
+                );
+                setUnreadCount(prev => prev + 1);
+            }
+        };
+
         socket.on('chat:history', onHistory);
         socket.on('chat:new', onNew);
         return () => {
             socket.off('chat:history', onHistory);
             socket.off('chat:new', onNew);
         };
-    }, [socket]);
+    }, [socket, user]);
 
     const handleScroll = useCallback(() => {
         const el = chatContainerRef.current;
