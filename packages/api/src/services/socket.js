@@ -207,16 +207,76 @@ export function initSocketIO(server) {
             const db = getDb();
             const id = uuidv4();
             const playingSong = db.prepare('SELECT id, title FROM songs WHERE room_id = ? AND is_playing = 1').get(socket.roomId);
-            db.prepare(`INSERT INTO chat_messages (id, room_id, user_id, content, song_id) VALUES (?, ?, ?, ?, ?)`).run(id, socket.roomId, socket.user.userId, content, playingSong?.id || null);
-            const message = { id, content, songTitle: playingSong?.title || null, user: { userId: socket.user.userId, displayName: socket.user.displayName, avatar: socket.user.avatar }, createdAt: new Date().toISOString() };
+            const replyTo = typeof data.replyTo === 'string' ? data.replyTo : null;
+
+            db.prepare(`INSERT INTO chat_messages (id, room_id, user_id, content, song_id, reply_to) VALUES (?, ?, ?, ?, ?, ?)`).run(id, socket.roomId, socket.user.userId, content, playingSong?.id || null, replyTo);
+
+            // Fetch reply message data if replying
+            let replyMessage = null;
+            if (replyTo) {
+                const reply = db.prepare(`SELECT cm.id, cm.content, u.id as user_id, u.display_name, u.avatar FROM chat_messages cm JOIN users u ON cm.user_id = u.id WHERE cm.id = ?`).get(replyTo);
+                if (reply) {
+                    replyMessage = { id: reply.id, content: reply.content.slice(0, 100), user: { userId: reply.user_id, displayName: reply.display_name, avatar: reply.avatar } };
+                }
+            }
+
+            // Detect @mentions in content
+            const mentionRegex = /@([^\s@]+(?:\s[^\s@]+)?)/g;
+            const mentions = [];
+            let match;
+            while ((match = mentionRegex.exec(content)) !== null) {
+                mentions.push(match[1]);
+            }
+
+            const message = { id, content, songTitle: playingSong?.title || null, replyTo, replyMessage, user: { userId: socket.user.userId, displayName: socket.user.displayName, avatar: socket.user.avatar }, createdAt: new Date().toISOString() };
             socket.nsp.emit('chat:new', message);
             logActivity(db, socket.roomId, socket.user.userId, 'chat', { messageId: id });
+
+            // Create notifications for mentioned users
+            if (mentions.length > 0) {
+                const room = db.prepare('SELECT name, slug FROM rooms WHERE id = ?').get(socket.roomId);
+                for (const mentionName of mentions) {
+                    const mentionedUser = db.prepare('SELECT id FROM users WHERE display_name = ? COLLATE NOCASE').get(mentionName);
+                    if (mentionedUser && mentionedUser.id !== socket.user.userId) {
+                        const notifId = uuidv4();
+                        try {
+                            db.prepare(`INSERT INTO room_notifications (id, room_id, user_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)`).run(
+                                notifId, socket.roomId, mentionedUser.id, 'mention',
+                                `${socket.user.displayName} mentioned you`,
+                                `in ${room?.name || 'a room'}: "${content.slice(0, 80)}"`
+                            );
+                        } catch (e) { /* table may not exist yet */ }
+                        // Emit to the mentioned user if they're online in global namespace
+                        io.emit('notification:mention', { userId: mentionedUser.id, roomSlug: room?.slug, from: socket.user.displayName, content: content.slice(0, 80) });
+                    }
+                }
+            }
         });
 
         socket.on('chat:history', () => {
             const db = getDb();
-            const messages = db.prepare(`SELECT cm.id, cm.content, cm.song_id, cm.created_at, u.id as user_id, u.display_name, u.avatar, s.title as song_title FROM chat_messages cm JOIN users u ON cm.user_id = u.id LEFT JOIN songs s ON cm.song_id = s.id WHERE cm.room_id = ? ORDER BY cm.created_at DESC LIMIT 50`).all(socket.roomId);
-            const formatted = messages.reverse().map(m => ({ id: m.id, content: m.content, songTitle: m.song_title, user: { userId: m.user_id, displayName: m.display_name, avatar: m.avatar }, createdAt: m.created_at }));
+            const messages = db.prepare(`SELECT cm.id, cm.content, cm.song_id, cm.reply_to, cm.created_at, u.id as user_id, u.display_name, u.avatar, s.title as song_title FROM chat_messages cm JOIN users u ON cm.user_id = u.id LEFT JOIN songs s ON cm.song_id = s.id WHERE cm.room_id = ? ORDER BY cm.created_at DESC LIMIT 50`).all(socket.roomId);
+
+            // Build a map of message IDs for reply lookups
+            const msgMap = new Map(messages.map(m => [m.id, m]));
+
+            const formatted = messages.reverse().map(m => {
+                let replyMessage = null;
+                if (m.reply_to) {
+                    // Try from current batch first
+                    const replyMsg = msgMap.get(m.reply_to);
+                    if (replyMsg) {
+                        replyMessage = { id: replyMsg.id, content: replyMsg.content.slice(0, 100), user: { userId: replyMsg.user_id, displayName: replyMsg.display_name, avatar: replyMsg.avatar } };
+                    } else {
+                        // Fetch from DB if not in batch
+                        const reply = db.prepare(`SELECT cm.id, cm.content, u.id as user_id, u.display_name, u.avatar FROM chat_messages cm JOIN users u ON cm.user_id = u.id WHERE cm.id = ?`).get(m.reply_to);
+                        if (reply) {
+                            replyMessage = { id: reply.id, content: reply.content.slice(0, 100), user: { userId: reply.user_id, displayName: reply.display_name, avatar: reply.avatar } };
+                        }
+                    }
+                }
+                return { id: m.id, content: m.content, songTitle: m.song_title, replyTo: m.reply_to, replyMessage, user: { userId: m.user_id, displayName: m.display_name, avatar: m.avatar }, createdAt: m.created_at };
+            });
             socket.emit('chat:history', formatted);
         });
 

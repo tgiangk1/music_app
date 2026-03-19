@@ -175,6 +175,9 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_playlist_songs ON playlist_songs(playlist_id, position);
   `);
 
+  // Feature: Chat Reply & Mention
+  try { db.exec(`ALTER TABLE chat_messages ADD COLUMN reply_to TEXT`); } catch (e) { }
+
   // Feature: Discover & Share
   try { db.exec(`ALTER TABLE rooms ADD COLUMN genre TEXT`); } catch (e) { }
   try { db.exec(`ALTER TABLE rooms ADD COLUMN tags TEXT`); } catch (e) { }

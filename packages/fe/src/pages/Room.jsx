@@ -581,7 +581,7 @@ export default function Room() {
                             <div className="flex-1 min-h-0">
                                 {(sidebarTab === 'chat' || mobileTab === 'chat') && (
                                     !isGuest ? (
-                                        <ChatBox socket={socket} />
+                                        <ChatBox socket={socket} onlineMembers={onlineMembers} />
                                     ) : (
                                         <div className="glass-card p-6 text-center">
                                             <p className="text-text-muted text-sm">Login to join the chat</p>
