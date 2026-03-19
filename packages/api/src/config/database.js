@@ -175,6 +175,9 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_playlist_songs ON playlist_songs(playlist_id, position);
   `);
 
+  // Feature: Chat Reply & Mention
+  try { db.exec(`ALTER TABLE chat_messages ADD COLUMN reply_to TEXT`); } catch (e) { }
+
   // Feature: Discover & Share
   try { db.exec(`ALTER TABLE rooms ADD COLUMN genre TEXT`); } catch (e) { }
   try { db.exec(`ALTER TABLE rooms ADD COLUMN tags TEXT`); } catch (e) { }
@@ -194,5 +197,19 @@ function runMigrations() {
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
     CREATE INDEX IF NOT EXISTS idx_schedules_room ON room_schedules(room_id, scheduled_at);
+  `);
+
+  // Feature: Push Notifications
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
   `);
 }

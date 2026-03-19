@@ -200,23 +200,132 @@ export function initSocketIO(server) {
             socket.nsp.emit('reaction:broadcast', { emoji: data.emoji, userId: socket.user.userId, displayName: socket.user.displayName, id: Date.now() + Math.random().toString(36).slice(2, 6) });
         });
 
-        socket.on('chat:send', (data) => {
+        socket.on('chat:send', async (data) => {
             if (!data?.content || typeof data.content !== 'string') return;
             const content = data.content.trim().slice(0, 500);
             if (!content) return;
             const db = getDb();
             const id = uuidv4();
             const playingSong = db.prepare('SELECT id, title FROM songs WHERE room_id = ? AND is_playing = 1').get(socket.roomId);
-            db.prepare(`INSERT INTO chat_messages (id, room_id, user_id, content, song_id) VALUES (?, ?, ?, ?, ?)`).run(id, socket.roomId, socket.user.userId, content, playingSong?.id || null);
-            const message = { id, content, songTitle: playingSong?.title || null, user: { userId: socket.user.userId, displayName: socket.user.displayName, avatar: socket.user.avatar }, createdAt: new Date().toISOString() };
+            const replyTo = typeof data.replyTo === 'string' ? data.replyTo : null;
+
+            db.prepare(`INSERT INTO chat_messages (id, room_id, user_id, content, song_id, reply_to) VALUES (?, ?, ?, ?, ?, ?)`).run(id, socket.roomId, socket.user.userId, content, playingSong?.id || null, replyTo);
+
+            // Fetch reply message data if replying
+            let replyMessage = null;
+            if (replyTo) {
+                const reply = db.prepare(`SELECT cm.id, cm.content, u.id as user_id, u.display_name, u.avatar FROM chat_messages cm JOIN users u ON cm.user_id = u.id WHERE cm.id = ?`).get(replyTo);
+                if (reply) {
+                    replyMessage = { id: reply.id, content: reply.content.slice(0, 100), user: { userId: reply.user_id, displayName: reply.display_name, avatar: reply.avatar } };
+                }
+            }
+
+            const message = { id, content, songTitle: playingSong?.title || null, replyTo, replyMessage, user: { userId: socket.user.userId, displayName: socket.user.displayName, avatar: socket.user.avatar }, createdAt: new Date().toISOString() };
             socket.nsp.emit('chat:new', message);
             logActivity(db, socket.roomId, socket.user.userId, 'chat', { messageId: id });
+
+            // --- Push Notifications for offline members ---
+            const room = db.prepare('SELECT name, slug FROM rooms WHERE id = ?').get(socket.roomId);
+            const roomMembers = db.prepare('SELECT user_id FROM room_members WHERE room_id = ?').all(socket.roomId);
+            const onlineSockets = await socket.nsp.fetchSockets();
+            const onlineUserIds = new Set(onlineSockets.map(s => s.user?.userId).filter(Boolean));
+
+            // Send push to members NOT online in this room (exclude sender)
+            const offlineUserIds = roomMembers
+                .map(m => m.user_id)
+                .filter(uid => uid !== socket.user.userId && !onlineUserIds.has(uid));
+
+            if (offlineUserIds.length > 0) {
+                import('./push.js').then(({ sendPushToUsers }) => {
+                    sendPushToUsers(offlineUserIds, {
+                        title: `${socket.user.displayName} in ${room?.name || 'SoundDen'}`,
+                        body: content.slice(0, 120),
+                        icon: socket.user.avatar || '/icon-192.png',
+                        url: `/room/${room?.slug || socket.roomId}`,
+                        tag: `chat-${socket.roomId}`,
+                    });
+                }).catch(() => { });
+            }
+
+            // Detect @mentions: query all room members + owner, check if their name appears in message
+            // This approach correctly handles multi-word display names
+            if (content.includes('@')) {
+                const memberUserIds = roomMembers.map(m => m.user_id);
+                if (!memberUserIds.includes(socket.roomOwnerId)) memberUserIds.push(socket.roomOwnerId);
+                const placeholders = memberUserIds.map(() => '?').join(',');
+                const candidateUsers = memberUserIds.length > 0
+                    ? db.prepare(`SELECT id, display_name FROM users WHERE id IN (${placeholders})`).all(...memberUserIds)
+                    : [];
+
+                const contentLower = content.toLowerCase();
+                for (const candidate of candidateUsers) {
+                    if (candidate.id === socket.user.userId) continue;
+                    const mentionText = `@${candidate.display_name}`.toLowerCase();
+                    if (!contentLower.includes(mentionText)) continue;
+
+                    const notifId = uuidv4();
+                    try {
+                        db.prepare(`INSERT INTO room_notifications (id, room_id, user_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)`).run(
+                            notifId, socket.roomId, candidate.id, 'mention',
+                            `${socket.user.displayName} mentioned you`,
+                            `in ${room?.name || 'a room'}: "${content.slice(0, 80)}"`
+                        );
+                    } catch (e) { /* table may not exist yet */ }
+
+                    // Emit real-time mention to the specific user's socket(s) in this room
+                    const roomNspName = socket.nsp.name;
+                    const targetNsp = io.of(roomNspName);
+                    for (const [, targetSocket] of targetNsp.sockets) {
+                        if (targetSocket.user?.userId === candidate.id) {
+                            targetSocket.emit('notification:mention', {
+                                userId: candidate.id,
+                                roomSlug: room?.slug,
+                                from: socket.user.displayName,
+                                content: content.slice(0, 80),
+                            });
+                        }
+                    }
+                    // Also emit via global namespace for users in OTHER rooms / pages
+                    io.emit('notification:mention', { userId: candidate.id, roomSlug: room?.slug, from: socket.user.displayName, content: content.slice(0, 80) });
+
+                    // Push notification for mention — always send (mention is important even if online)
+                    import('./push.js').then(({ sendPushToUser }) => {
+                        sendPushToUser(candidate.id, {
+                            title: `${socket.user.displayName} mentioned you`,
+                            body: `in ${room?.name || 'a room'}: "${content.slice(0, 100)}"`,
+                            icon: socket.user.avatar || '/icon-192.png',
+                            url: `/room/${room?.slug || socket.roomId}`,
+                            tag: `mention-${socket.roomId}`,
+                        });
+                    }).catch(() => { });
+                }
+            }
         });
 
         socket.on('chat:history', () => {
             const db = getDb();
-            const messages = db.prepare(`SELECT cm.id, cm.content, cm.song_id, cm.created_at, u.id as user_id, u.display_name, u.avatar, s.title as song_title FROM chat_messages cm JOIN users u ON cm.user_id = u.id LEFT JOIN songs s ON cm.song_id = s.id WHERE cm.room_id = ? ORDER BY cm.created_at DESC LIMIT 50`).all(socket.roomId);
-            const formatted = messages.reverse().map(m => ({ id: m.id, content: m.content, songTitle: m.song_title, user: { userId: m.user_id, displayName: m.display_name, avatar: m.avatar }, createdAt: m.created_at }));
+            const messages = db.prepare(`SELECT cm.id, cm.content, cm.song_id, cm.reply_to, cm.created_at, u.id as user_id, u.display_name, u.avatar, s.title as song_title FROM chat_messages cm JOIN users u ON cm.user_id = u.id LEFT JOIN songs s ON cm.song_id = s.id WHERE cm.room_id = ? ORDER BY cm.created_at DESC LIMIT 50`).all(socket.roomId);
+
+            // Build a map of message IDs for reply lookups
+            const msgMap = new Map(messages.map(m => [m.id, m]));
+
+            const formatted = messages.reverse().map(m => {
+                let replyMessage = null;
+                if (m.reply_to) {
+                    // Try from current batch first
+                    const replyMsg = msgMap.get(m.reply_to);
+                    if (replyMsg) {
+                        replyMessage = { id: replyMsg.id, content: replyMsg.content.slice(0, 100), user: { userId: replyMsg.user_id, displayName: replyMsg.display_name, avatar: replyMsg.avatar } };
+                    } else {
+                        // Fetch from DB if not in batch
+                        const reply = db.prepare(`SELECT cm.id, cm.content, u.id as user_id, u.display_name, u.avatar FROM chat_messages cm JOIN users u ON cm.user_id = u.id WHERE cm.id = ?`).get(m.reply_to);
+                        if (reply) {
+                            replyMessage = { id: reply.id, content: reply.content.slice(0, 100), user: { userId: reply.user_id, displayName: reply.display_name, avatar: reply.avatar } };
+                        }
+                    }
+                }
+                return { id: m.id, content: m.content, songTitle: m.song_title, replyTo: m.reply_to, replyMessage, user: { userId: m.user_id, displayName: m.display_name, avatar: m.avatar }, createdAt: m.created_at };
+            });
             socket.emit('chat:history', formatted);
         });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 
@@ -9,14 +9,20 @@ export default function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
+    const fetchNotifications = useCallback(async () => {
+        try {
+            const res = await api.get('/api/notifications');
+            setNotifications(res.data.notifications || []);
+            setUnreadCount(res.data.unreadCount || 0);
+        } catch (err) { }
+    }, []);
+
     useEffect(() => {
         if (!user) return;
         fetchNotifications();
-
-        // Optional: poll every minute or listen to global socket for 'notification'
-        const interval = setInterval(fetchNotifications, 60000);
+        const interval = setInterval(fetchNotifications, 30000);
         return () => clearInterval(interval);
-    }, [user]);
+    }, [user, fetchNotifications]);
 
     // Close dropdown on click outside
     useEffect(() => {
@@ -28,14 +34,6 @@ export default function NotificationBell() {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
-
-    const fetchNotifications = async () => {
-        try {
-            const res = await api.get('/api/notifications');
-            setNotifications(res.data.notifications || []);
-            setUnreadCount(res.data.unreadCount || 0);
-        } catch (err) { }
-    };
 
     const markAsRead = async (id) => {
         try {
@@ -53,17 +51,23 @@ export default function NotificationBell() {
         } catch (err) { }
     };
 
+    const handleOpen = () => {
+        setIsOpen(!isOpen);
+        if (!isOpen) fetchNotifications(); // refresh on open
+    };
+
     return (
         <div className="relative" ref={dropdownRef}>
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={handleOpen}
                 className="relative p-2 text-surface-400 hover:text-white transition-colors rounded-full hover:bg-surface-800"
             >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
                 </svg>
                 {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface flex items-center justify-center">
+                    <span className="absolute top-1 right-1.5 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-surface flex items-center justify-center text-[10px] text-white font-bold px-0.5">
+                        {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
             </button>
@@ -89,18 +93,18 @@ export default function NotificationBell() {
                                 {notifications.map(notif => (
                                     <div
                                         key={notif.id}
-                                        className={`p-4 transition-colors ${!notif.is_read ? 'bg-primary-500/5 hover:bg-primary-500/10' : 'hover:bg-surface-700/30'}`}
+                                        className={`p-4 transition-colors cursor-pointer ${!notif.is_read ? 'bg-primary-500/5 hover:bg-primary-500/10' : 'hover:bg-surface-700/30'}`}
                                         onClick={() => !notif.is_read && markAsRead(notif.id)}
                                     >
                                         <div className="flex gap-3">
-                                            <div className="mt-0.5">
+                                            <div className="mt-1.5 flex-shrink-0">
                                                 {!notif.is_read ? (
                                                     <div className="w-2 h-2 rounded-full bg-primary-500" />
                                                 ) : (
                                                     <div className="w-2 h-2 rounded-full bg-transparent" />
                                                 )}
                                             </div>
-                                            <div>
+                                            <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-white mb-0.5">{notif.title}</p>
                                                 <p className="text-xs text-surface-400 line-clamp-2">{notif.message}</p>
                                                 <p className="text-[10px] text-surface-500 mt-2">

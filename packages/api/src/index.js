@@ -23,6 +23,7 @@ import exploreRoutes from './routes/explore.js';
 import profileRoutes from './routes/profile.js';
 import ogRoutes from './routes/og.js';
 import gamificationRoutes from './routes/gamification.js';
+import pushRoutes from './routes/push.js';
 
 const app = express();
 const server = createServer(app);
@@ -61,6 +62,7 @@ app.use('/api/explore', exploreRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/og', ogRoutes);
 app.use('/api/gamification', gamificationRoutes);
+app.use('/api/push', pushRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

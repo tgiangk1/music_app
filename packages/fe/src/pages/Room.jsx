@@ -6,6 +6,7 @@ import { useSocket } from '../hooks/useSocket';
 import { useQueue } from '../hooks/useQueue';
 import { useNotifications } from '../hooks/useNotifications';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import PlayerComponent from '../components/Player/PlayerComponent';
 import MiniPlayer from '../components/Player/MiniPlayer';
 import RadioMode from '../components/Player/RadioMode';
@@ -23,6 +24,7 @@ import MobileNav from '../components/MobileNav';
 import { generateQRCode, generateQRDataURL } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+
 
 export default function Room() {
     const { slug } = useParams();
@@ -70,12 +72,18 @@ export default function Room() {
         reorderQueue,
     } = useQueue(slug);
 
-    // Browser notifications (only for logged-in users)
+    // Browser notifications + auto-subscribe push (only for logged-in users)
     const { requestPermission, notify } = useNotifications();
+    const { isSupported: pushSupported, isSubscribed: pushSubscribed, subscribe: pushSubscribe } = usePushNotifications();
 
     useEffect(() => {
-        if (!isGuest) requestPermission();
-    }, [requestPermission, isGuest]);
+        if (isGuest) return;
+        requestPermission();
+        // Auto-subscribe push if supported and not yet subscribed
+        if (pushSupported && !pushSubscribed) {
+            pushSubscribe().catch(() => { });
+        }
+    }, [requestPermission, isGuest, pushSupported, pushSubscribed, pushSubscribe]);
 
     // Fetch room details
     useEffect(() => {
@@ -366,6 +374,7 @@ export default function Room() {
 
                         <ThemeSwitcher />
 
+
                         {/* User Avatar / Profile Dropdown */}
                         {!isGuest ? (
                             <div className="relative" ref={profileMenuRef}>
@@ -581,7 +590,7 @@ export default function Room() {
                             <div className="flex-1 min-h-0">
                                 {(sidebarTab === 'chat' || mobileTab === 'chat') && (
                                     !isGuest ? (
-                                        <ChatBox socket={socket} />
+                                        <ChatBox socket={socket} onlineMembers={onlineMembers} />
                                     ) : (
                                         <div className="glass-card p-6 text-center">
                                             <p className="text-text-muted text-sm">Login to join the chat</p>
