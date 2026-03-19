@@ -200,7 +200,7 @@ export function initSocketIO(server) {
             socket.nsp.emit('reaction:broadcast', { emoji: data.emoji, userId: socket.user.userId, displayName: socket.user.displayName, id: Date.now() + Math.random().toString(36).slice(2, 6) });
         });
 
-        socket.on('chat:send', (data) => {
+        socket.on('chat:send', async (data) => {
             if (!data?.content || typeof data.content !== 'string') return;
             const content = data.content.trim().slice(0, 500);
             if (!content) return;
@@ -232,9 +232,31 @@ export function initSocketIO(server) {
             socket.nsp.emit('chat:new', message);
             logActivity(db, socket.roomId, socket.user.userId, 'chat', { messageId: id });
 
-            // Create notifications for mentioned users
+            // --- Push Notifications for offline members ---
+            const room = db.prepare('SELECT name, slug FROM rooms WHERE id = ?').get(socket.roomId);
+            const roomMembers = db.prepare('SELECT user_id FROM room_members WHERE room_id = ?').all(socket.roomId);
+            const onlineSockets = await socket.nsp.fetchSockets();
+            const onlineUserIds = new Set(onlineSockets.map(s => s.user?.userId).filter(Boolean));
+
+            // Send push to members NOT online in this room (exclude sender)
+            const offlineUserIds = roomMembers
+                .map(m => m.user_id)
+                .filter(uid => uid !== socket.user.userId && !onlineUserIds.has(uid));
+
+            if (offlineUserIds.length > 0) {
+                import('./push.js').then(({ sendPushToUsers }) => {
+                    sendPushToUsers(offlineUserIds, {
+                        title: `${socket.user.displayName} in ${room?.name || 'SoundDen'}`,
+                        body: content.slice(0, 120),
+                        icon: socket.user.avatar || '/icon-192.png',
+                        url: `/room/${room?.slug || socket.roomId}`,
+                        tag: `chat-${socket.roomId}`,
+                    });
+                }).catch(() => { });
+            }
+
+            // Create notifications + push for mentioned users
             if (mentions.length > 0) {
-                const room = db.prepare('SELECT name, slug FROM rooms WHERE id = ?').get(socket.roomId);
                 for (const mentionName of mentions) {
                     const mentionedUser = db.prepare('SELECT id FROM users WHERE display_name = ? COLLATE NOCASE').get(mentionName);
                     if (mentionedUser && mentionedUser.id !== socket.user.userId) {
@@ -248,6 +270,19 @@ export function initSocketIO(server) {
                         } catch (e) { /* table may not exist yet */ }
                         // Emit to the mentioned user if they're online in global namespace
                         io.emit('notification:mention', { userId: mentionedUser.id, roomSlug: room?.slug, from: socket.user.displayName, content: content.slice(0, 80) });
+
+                        // Push notification for mention (even if online — important notification)
+                        if (!onlineUserIds.has(mentionedUser.id)) {
+                            import('./push.js').then(({ sendPushToUser }) => {
+                                sendPushToUser(mentionedUser.id, {
+                                    title: `${socket.user.displayName} mentioned you`,
+                                    body: `in ${room?.name || 'a room'}: "${content.slice(0, 100)}"`,
+                                    icon: socket.user.avatar || '/icon-192.png',
+                                    url: `/room/${room?.slug || socket.roomId}`,
+                                    tag: `mention-${socket.roomId}`,
+                                });
+                            }).catch(() => { });
+                        }
                     }
                 }
             }

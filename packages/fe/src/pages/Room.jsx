@@ -6,6 +6,7 @@ import { useSocket } from '../hooks/useSocket';
 import { useQueue } from '../hooks/useQueue';
 import { useNotifications } from '../hooks/useNotifications';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import PlayerComponent from '../components/Player/PlayerComponent';
 import MiniPlayer from '../components/Player/MiniPlayer';
 import RadioMode from '../components/Player/RadioMode';
@@ -23,6 +24,40 @@ import MobileNav from '../components/MobileNav';
 import { generateQRCode, generateQRDataURL } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+
+function PushNotifToggle() {
+    const { isSupported, isSubscribed, isLoading, toggle, permission } = usePushNotifications();
+    if (!isSupported) return null;
+
+    return (
+        <button
+            onClick={async () => {
+                const result = await toggle();
+                if (result === false && permission === 'denied') {
+                    toast.error('Notifications blocked. Please enable in browser settings.');
+                } else if (isSubscribed) {
+                    toast('Notifications turned off', { icon: '🔕' });
+                } else {
+                    toast.success('Notifications enabled! 🔔');
+                }
+            }}
+            disabled={isLoading}
+            className={`p-2 rounded-lg transition-all ${isSubscribed
+                ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                : 'text-text-muted hover:bg-card-hover hover:text-text-primary'
+                } ${isLoading ? 'opacity-50 cursor-wait' : ''}`}
+            title={isSubscribed ? 'Disable notifications' : 'Enable notifications'}
+        >
+            <svg className={`w-5 h-5 ${isSubscribed ? 'animate-[ring_0.5s_ease-in-out]' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                {isSubscribed ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.143 17.082a24.248 24.248 0 0 0 5.714 0m-5.714 0a3 3 0 1 1 5.714 0M3.124 15.773A8.966 8.966 0 0 1 6 9.75V9a6 6 0 0 1 6-6 6 6 0 0 1 6 6v.75a8.967 8.967 0 0 0 2.312 6.022M3.124 15.773c1.733.641 3.56 1.086 5.455 1.31M20.312 15.772c-1.733.641-3.56 1.086-5.455 1.31M15 9h.01" />
+                )}
+            </svg>
+        </button>
+    );
+}
 
 export default function Room() {
     const { slug } = useParams();
@@ -365,6 +400,9 @@ export default function Room() {
                         </button>
 
                         <ThemeSwitcher />
+
+                        {/* Push Notification Toggle */}
+                        {!isGuest && <PushNotifToggle />}
 
                         {/* User Avatar / Profile Dropdown */}
                         {!isGuest ? (
