@@ -187,20 +187,19 @@ export default function ChatBox({ socket, onlineMembers = [] }) {
                                     className="w-7 h-7 rounded-full flex-shrink-0 mt-2"
                                     referrerPolicy="no-referrer"
                                 />
-                                <div className={`max-w-[75%] ${isMe ? 'text-right' : ''}`}>
-                                    {/* Reply preview */}
+                                <div className={`max-w-[75%] min-w-0 flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                    {/* Reply snippet — Discord-style, above bubble */}
                                     {msg.replyMessage && (
-                                        <div className={`flex items-center gap-1.5 mb-1 px-2.5 py-1 rounded-lg bg-white/[0.04] border-l-2 border-primary/40 text-[11px] text-text-muted ${isMe ? 'ml-auto' : ''}`}
-                                            style={{ maxWidth: 'fit-content' }}>
-                                            <span className="font-semibold text-primary/70 truncate">
-                                                {msg.replyMessage.user?.displayName}
-                                            </span>
-                                            <span className="truncate max-w-[150px]">
-                                                {msg.replyMessage.content}
-                                            </span>
+                                        <div className={`flex items-center gap-1.5 mb-0.5 text-[11px] max-w-full ${isMe ? 'flex-row-reverse' : 'pl-1'}`}>
+                                            <div className="w-0.5 h-3.5 rounded-full bg-primary/50 flex-shrink-0" />
+                                            <svg className="w-3 h-3 text-text-muted flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                                            </svg>
+                                            <span className="font-semibold text-primary/70 flex-shrink-0">{msg.replyMessage.user?.displayName}</span>
+                                            <span className="text-text-muted truncate">{msg.replyMessage.content}</span>
                                         </div>
                                     )}
-                                    <div className={`inline-block px-3 py-2 rounded-2xl text-sm ${isMe
+                                    <div className={`px-3 py-2 rounded-2xl text-sm ${isMe
                                         ? 'bg-primary/20 text-text-primary rounded-tr-md'
                                         : 'bg-white/[0.06] border border-white/[0.08] text-text-primary rounded-tl-md'
                                         }`}>
