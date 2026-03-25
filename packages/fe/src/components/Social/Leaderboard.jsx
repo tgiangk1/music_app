@@ -59,6 +59,7 @@ export default function Leaderboard({ slug }) {
                             src={entry.avatar || `https://ui-avatars.com/api/?name=${entry.display_name}&background=random&size=32`}
                             alt=""
                             className="w-8 h-8 rounded-full flex-shrink-0"
+                            referrerPolicy="no-referrer"
                         />
 
                         {/* Info */}

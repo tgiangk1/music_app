@@ -13,6 +13,7 @@ import Explore from './pages/Explore'
 import Profile from './pages/Profile'
 import Gamification from './pages/Gamification'
 import ProtectedRoute from './components/ProtectedRoute'
+import FeedbackButton from './components/FeedbackButton'
 import { ThemeProvider } from './components/ThemeProvider'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -44,6 +45,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     } />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                <FeedbackButton />
             </BrowserRouter>
             <Toaster
                 position="bottom-right"

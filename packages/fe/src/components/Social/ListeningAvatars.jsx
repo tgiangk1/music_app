@@ -22,6 +22,7 @@ export default function ListeningAvatars({ members = [] }) {
                             src={m.avatar || `https://ui-avatars.com/api/?name=${m.displayName}&background=random&size=32`}
                             alt={m.displayName}
                             className="w-8 h-8 rounded-full border-2 border-surface ring-1 ring-border/30 transition-transform group-hover:scale-110 group-hover:z-50"
+                            referrerPolicy="no-referrer"
                         />
                         {/* Listening pulse indicator */}
                         <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full border border-surface">

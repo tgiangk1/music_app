@@ -212,4 +212,23 @@ function runMigrations() {
     );
     CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
   `);
+
+  // Feature: Feedback System
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS feedbacks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT DEFAULT 'new',
+      admin_reply TEXT,
+      replied_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_feedbacks_user ON feedbacks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON feedbacks(status);
+  `);
+  try { db.exec(`ALTER TABLE feedbacks ADD COLUMN screenshot TEXT`); } catch (e) { }
 }
