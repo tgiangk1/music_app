@@ -209,7 +209,7 @@ export function initSocketIO(server) {
             const playingSong = db.prepare('SELECT id, title FROM songs WHERE room_id = ? AND is_playing = 1').get(socket.roomId);
             const replyTo = typeof data.replyTo === 'string' ? data.replyTo : null;
 
-            db.prepare(`INSERT INTO chat_messages (id, room_id, user_id, content, song_id, reply_to) VALUES (?, ?, ?, ?, ?, ?)`).run(id, socket.roomId, socket.user.userId, content, playingSong?.id || null, replyTo);
+            db.prepare(`INSERT INTO chat_messages (id, room_id, user_id, content, song_id, song_title, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(id, socket.roomId, socket.user.userId, content, playingSong?.id || null, playingSong?.title || null, replyTo);
 
             // Fetch reply message data if replying
             let replyMessage = null;
@@ -220,7 +220,9 @@ export function initSocketIO(server) {
                 }
             }
 
-            const message = { id, content, songTitle: playingSong?.title || null, replyTo, replyMessage, user: { userId: socket.user.userId, displayName: socket.user.displayName, avatar: socket.user.avatar }, createdAt: new Date().toISOString() };
+            const actualTitle = playingSong?.title || null;
+            const messageTitle = (actualTitle && actualTitle.startsWith('YouTube Video (')) ? null : actualTitle;
+            const message = { id, content, songTitle: messageTitle, replyTo, replyMessage, user: { userId: socket.user.userId, displayName: socket.user.displayName, avatar: socket.user.avatar }, createdAt: new Date().toISOString() };
             socket.nsp.emit('chat:new', message);
             logActivity(db, socket.roomId, socket.user.userId, 'chat', { messageId: id });
 
@@ -304,27 +306,36 @@ export function initSocketIO(server) {
 
         socket.on('chat:history', () => {
             const db = getDb();
-            const messages = db.prepare(`SELECT cm.id, cm.content, cm.song_id, cm.reply_to, cm.created_at, u.id as user_id, u.display_name, u.avatar, s.title as song_title FROM chat_messages cm JOIN users u ON cm.user_id = u.id LEFT JOIN songs s ON cm.song_id = s.id WHERE cm.room_id = ? ORDER BY cm.created_at DESC LIMIT 50`).all(socket.roomId);
+            const count = 50; // Define count for LIMIT
+            const messages = db.prepare(`
+                SELECT cm.id, cm.content, cm.created_at, cm.reply_to, cm.song_title as saved_song_title,
+                       s.title as playing_song_title,
+                       u.id as user_id, u.display_name, u.avatar
+                FROM chat_messages cm
+                JOIN users u ON cm.user_id = u.id
+                LEFT JOIN songs s ON cm.song_id = s.id
+                WHERE cm.room_id = ?
+                ORDER BY cm.created_at DESC
+                LIMIT ?
+            `).all(socket.roomId, count).reverse();
 
-            // Build a map of message IDs for reply lookups
-            const msgMap = new Map(messages.map(m => [m.id, m]));
+            // Fetch reply data
+            const replyIds = messages.map(m => m.reply_to).filter(Boolean);
+            let repliesMap = {};
+            if (replyIds.length > 0) {
+                const placeholders = replyIds.map(() => '?').join(',');
+                const replies = db.prepare(`SELECT cm.id, cm.content, u.id as user_id, u.display_name, u.avatar FROM chat_messages cm JOIN users u ON cm.user_id = u.id WHERE cm.id IN (${placeholders})`).all(...replyIds);
+                replyIds.forEach(id => { const r = replies.find(x => x.id === id); if (r) repliesMap[id] = r; });
+            }
 
-            const formatted = messages.reverse().map(m => {
+            const formatted = messages.map(m => {
                 let replyMessage = null;
-                if (m.reply_to) {
-                    // Try from current batch first
-                    const replyMsg = msgMap.get(m.reply_to);
-                    if (replyMsg) {
-                        replyMessage = { id: replyMsg.id, content: replyMsg.content.slice(0, 100), user: { userId: replyMsg.user_id, displayName: replyMsg.display_name, avatar: replyMsg.avatar } };
-                    } else {
-                        // Fetch from DB if not in batch
-                        const reply = db.prepare(`SELECT cm.id, cm.content, u.id as user_id, u.display_name, u.avatar FROM chat_messages cm JOIN users u ON cm.user_id = u.id WHERE cm.id = ?`).get(m.reply_to);
-                        if (reply) {
-                            replyMessage = { id: reply.id, content: reply.content.slice(0, 100), user: { userId: reply.user_id, displayName: reply.display_name, avatar: reply.avatar } };
-                        }
-                    }
+                if (m.reply_to && repliesMap[m.reply_to]) {
+                    const rm = repliesMap[m.reply_to];
+                    replyMessage = { id: rm.id, content: rm.content.slice(0, 100), user: { userId: rm.user_id, displayName: rm.display_name, avatar: rm.avatar } };
                 }
-                return { id: m.id, content: m.content, songTitle: m.song_title, replyTo: m.reply_to, replyMessage, user: { userId: m.user_id, displayName: m.display_name, avatar: m.avatar }, createdAt: m.created_at };
+                const actualTitle = m.playing_song_title || m.saved_song_title;
+                return { id: m.id, content: m.content, songTitle: actualTitle?.startsWith('YouTube Video (') ? null : actualTitle, replyTo: m.reply_to, replyMessage, user: { userId: m.user_id, displayName: m.display_name, avatar: m.avatar }, createdAt: m.created_at };
             });
             socket.emit('chat:history', formatted);
         });

@@ -147,6 +147,7 @@ function runMigrations() {
     );
     CREATE INDEX IF NOT EXISTS idx_activity_room ON activity_log(room_id, created_at DESC);
   `);
+  try { db.exec(`ALTER TABLE chat_messages ADD COLUMN song_title TEXT`); } catch (e) { }
   db.exec(`
     CREATE TABLE IF NOT EXISTS playlists (
       id TEXT PRIMARY KEY,
