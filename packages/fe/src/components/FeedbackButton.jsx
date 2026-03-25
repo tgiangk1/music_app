@@ -34,12 +34,18 @@ export default function FeedbackButton() {
     const [expandedId, setExpandedId] = useState(null);
     const panelRef = useRef(null);
     const fileInputRef = useRef(null);
+    const buttonRef = useRef(null);
 
     // Close panel on outside click
     useEffect(() => {
         if (!open) return;
         const handleClick = (e) => {
-            if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false);
+            if (
+                panelRef.current && !panelRef.current.contains(e.target) &&
+                buttonRef.current && !buttonRef.current.contains(e.target)
+            ) {
+                setOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
@@ -86,6 +92,26 @@ export default function FeedbackButton() {
         setScreenshotPreview(URL.createObjectURL(file));
     };
 
+    const handlePaste = (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        toast.error('Image must be under 5MB');
+                        return;
+                    }
+                    setScreenshot(file);
+                    setScreenshotPreview(URL.createObjectURL(file));
+                    toast.success('Pasted image attached!');
+                }
+                break;
+            }
+        }
+    };
+
     const removeScreenshot = () => {
         setScreenshot(null);
         if (screenshotPreview) URL.revokeObjectURL(screenshotPreview);
@@ -129,6 +155,7 @@ export default function FeedbackButton() {
         <>
             {/* Floating Button */}
             <button
+                ref={buttonRef}
                 onClick={() => setOpen(prev => !prev)}
                 style={{
                     position: 'fixed', bottom: 24, right: 24,
@@ -185,7 +212,7 @@ export default function FeedbackButton() {
 
                     {/* Form */}
                     {view === 'form' && (
-                        <form onSubmit={handleSubmit} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+                        <form onPaste={handlePaste} onSubmit={handleSubmit} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
                             {/* Categories */}
                             <div>
                                 <label style={{ fontSize: 11, color: '#7c6fa0', marginBottom: 4, display: 'block' }}>Category</label>

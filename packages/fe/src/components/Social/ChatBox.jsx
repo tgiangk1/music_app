@@ -331,9 +331,35 @@ export default function ChatBox({ socket, onlineMembers = [] }) {
         });
     };
 
-    // Render content with @mention highlighting
-    const renderContent = (content) => {
-        const parts = content.split(/(@[^\s@]+(?:\s[^\s@]+)?)/g);
+    // Render content with @mention highlighting based on known names
+    const renderContent = useCallback((content) => {
+        if (!content) return null;
+
+        // Automatically match names of online members, oneself, and history
+        const knownNames = new Set();
+        if (user?.displayName) knownNames.add(user.displayName);
+        onlineMembers.forEach(m => {
+            if (m.displayName) knownNames.add(m.displayName);
+        });
+        messages.forEach(m => {
+            if (m.display_name) knownNames.add(m.display_name);
+            if (m.user?.displayName) knownNames.add(m.user.displayName);
+        });
+
+        // Sort by length so longer names (3-4 words) match first
+        const sortedNames = Array.from(knownNames)
+            .filter(Boolean)
+            .sort((a, b) => b.length - a.length)
+            .map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+        let regex;
+        if (sortedNames.length > 0) {
+            regex = new RegExp(`(@(?:${sortedNames.join('|')})|@[^\\s@]+)`, 'gi');
+        } else {
+            regex = /(@[^\s@]+(?:\s[^\s@]+)?)/g;
+        }
+
+        const parts = content.split(regex);
         return parts.map((part, i) => {
             if (part.startsWith('@')) {
                 return (
@@ -344,7 +370,7 @@ export default function ChatBox({ socket, onlineMembers = [] }) {
             }
             return part;
         });
-    };
+    }, [user, onlineMembers, messages]);
 
     return (
         <div className="glass-card overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
