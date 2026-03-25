@@ -22,7 +22,7 @@ export default function Explore() {
   const [pagination, setPagination] = useState({ total: 0, hasMore: false });
 
   useEffect(() => {
-    api.get('/api/explore/genres').then(res => setGenres(res.data.genres)).catch(() => {});
+    api.get('/api/explore/genres').then(res => setGenres(res.data.genres)).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function Explore() {
   const handleSearch = (value) => {
     setSearch(value);
     if (searchTimeout) clearTimeout(searchTimeout);
-    setSearchTimeout(setTimeout(() => {}, 300));
+    setSearchTimeout(setTimeout(() => { }, 300));
   };
 
   return (
@@ -81,7 +81,7 @@ export default function Explore() {
             {user ? (
               <>
                 <Link to="/" className="btn-ghost text-sm">My Rooms</Link>
-                <img src={user?.avatar} alt="" className="w-8 h-8 rounded-full border border-border" />
+                <img src={user?.avatar} alt="" className="w-8 h-8 rounded-full border border-border" referrerPolicy="no-referrer" />
               </>
             ) : (
               <a
@@ -132,11 +132,10 @@ export default function Explore() {
           <div className="flex flex-wrap gap-2 flex-1">
             <button
               onClick={() => setSelectedGenre('')}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                !selectedGenre
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${!selectedGenre
                   ? 'bg-primary text-white'
                   : 'bg-card hover:bg-card-hover text-text-secondary'
-              }`}
+                }`}
             >
               All
             </button>
@@ -144,11 +143,10 @@ export default function Explore() {
               <button
                 key={g}
                 onClick={() => setSelectedGenre(selectedGenre === g ? '' : g)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  selectedGenre === g
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${selectedGenre === g
                     ? 'bg-primary text-white'
                     : 'bg-card hover:bg-card-hover text-text-secondary'
-                }`}
+                  }`}
               >
                 {g}
               </button>

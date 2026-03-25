@@ -24,6 +24,7 @@ import profileRoutes from './routes/profile.js';
 import ogRoutes from './routes/og.js';
 import gamificationRoutes from './routes/gamification.js';
 import pushRoutes from './routes/push.js';
+import feedbackRoutes from './routes/feedback.js';
 
 const app = express();
 const server = createServer(app);
@@ -47,6 +48,7 @@ app.use(cors({
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(passport.initialize());
+app.use('/uploads', express.static('data/uploads'));
 
 // Routes
 app.use('/auth', authRoutes);
@@ -63,6 +65,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/og', ogRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

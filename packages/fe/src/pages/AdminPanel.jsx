@@ -9,8 +9,13 @@ export default function AdminPanel() {
     const [activeTab, setActiveTab] = useState('users');
     const [users, setUsers] = useState([]);
     const [rooms, setRooms] = useState([]);
+    const [feedbacks, setFeedbacks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [feedbackFilter, setFeedbackFilter] = useState({ status: '', category: '' });
+    const [replyingTo, setReplyingTo] = useState(null);
+    const [replyText, setReplyText] = useState('');
+    const [expandedFeedback, setExpandedFeedback] = useState(null);
 
     useEffect(() => {
         fetchData();
@@ -22,9 +27,15 @@ export default function AdminPanel() {
             if (activeTab === 'users') {
                 const res = await api.get(`/api/users${searchQuery ? `?search=${searchQuery}` : ''}`);
                 setUsers(res.data.users);
-            } else {
+            } else if (activeTab === 'rooms') {
                 const res = await api.get('/api/rooms');
                 setRooms(res.data.rooms);
+            } else if (activeTab === 'feedback') {
+                const params = new URLSearchParams();
+                if (feedbackFilter.status) params.set('status', feedbackFilter.status);
+                if (feedbackFilter.category) params.set('category', feedbackFilter.category);
+                const res = await api.get(`/api/feedback?${params}`);
+                setFeedbacks(res.data);
             }
         } catch (err) {
             toast.error('Failed to load data');
@@ -69,6 +80,40 @@ export default function AdminPanel() {
         }
     };
 
+    const handleReply = async (feedbackId) => {
+        if (!replyText.trim()) return;
+        try {
+            await api.patch(`/api/feedback/${feedbackId}`, { admin_reply: replyText.trim() });
+            toast.success('Reply sent');
+            setReplyingTo(null);
+            setReplyText('');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to send reply');
+        }
+    };
+
+    const handleFeedbackStatus = async (feedbackId, status) => {
+        try {
+            await api.patch(`/api/feedback/${feedbackId}`, { status });
+            toast.success('Status updated');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to update status');
+        }
+    };
+
+    const handleDeleteFeedback = async (feedbackId) => {
+        if (!confirm('Delete this feedback?')) return;
+        try {
+            await api.delete(`/api/feedback/${feedbackId}`);
+            toast.success('Feedback deleted');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to delete');
+        }
+    };
+
     return (
         <div className="min-h-screen">
             {/* Header */}
@@ -88,7 +133,7 @@ export default function AdminPanel() {
             <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
                 {/* Tabs */}
                 <div className="flex gap-2 mb-8">
-                    {['users', 'rooms'].map(tab => (
+                    {['users', 'rooms', 'feedback'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -139,7 +184,7 @@ export default function AdminPanel() {
                                                 <tr key={u.id} className="border-b border-border/30 hover:bg-card-hover transition-colors">
                                                     <td className="px-4 py-3">
                                                         <div className="flex items-center gap-3">
-                                                            <img src={u.avatar} alt="" className="w-8 h-8 rounded-full border border-border" />
+                                                            <img src={u.avatar} alt="" className="w-8 h-8 rounded-full border border-border" referrerPolicy="no-referrer" />
                                                             <span className="text-sm font-medium">{u.displayName}</span>
                                                         </div>
                                                     </td>
@@ -229,6 +274,135 @@ export default function AdminPanel() {
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Feedback Tab */}
+                {activeTab === 'feedback' && (
+                    <div className="space-y-4">
+                        {/* Filters */}
+                        <div className="flex gap-3 mb-6 flex-wrap">
+                            <select
+                                value={feedbackFilter.status}
+                                onChange={e => { setFeedbackFilter(f => ({ ...f, status: e.target.value })); setTimeout(fetchData, 0); }}
+                                className="input-field w-auto"
+                            >
+                                <option value="">All Status</option>
+                                <option value="new">🔵 New</option>
+                                <option value="read">🟡 Read</option>
+                                <option value="replied">🟢 Replied</option>
+                            </select>
+                            <select
+                                value={feedbackFilter.category}
+                                onChange={e => { setFeedbackFilter(f => ({ ...f, category: e.target.value })); setTimeout(fetchData, 0); }}
+                                className="input-field w-auto"
+                            >
+                                <option value="">All Categories</option>
+                                <option value="bug">🐛 Bug</option>
+                                <option value="feature-request">💡 Feature</option>
+                                <option value="ui-ux">🎨 UI/UX</option>
+                                <option value="music">🎵 Music</option>
+                                <option value="other">📝 Other</option>
+                            </select>
+                            <span className="text-text-muted text-sm self-center ml-auto">{feedbacks.length} feedback(s)</span>
+                        </div>
+
+                        {isLoading ? (
+                            <div className="space-y-3">
+                                {[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
+                            </div>
+                        ) : feedbacks.length === 0 ? (
+                            <div className="text-center py-20">
+                                <p className="text-4xl mb-3">📭</p>
+                                <p className="text-text-muted">No feedback yet</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {feedbacks.map(fb => {
+                                    const isExpanded = expandedFeedback === fb.id;
+                                    const categoryIcons = { 'bug': '🐛', 'feature-request': '💡', 'ui-ux': '🎨', 'music': '🎵', 'other': '📝' };
+                                    const statusColors = { 'new': 'bg-blue-500/10 text-blue-400', 'read': 'bg-yellow-500/10 text-yellow-400', 'replied': 'bg-green-500/10 text-green-400' };
+                                    return (
+                                        <div key={fb.id} className="glass-card overflow-hidden">
+                                            <div
+                                                className="p-4 cursor-pointer hover:bg-card-hover transition-colors"
+                                                onClick={() => setExpandedFeedback(isExpanded ? null : fb.id)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <img src={fb.avatar} alt="" className="w-8 h-8 rounded-full border border-border" referrerPolicy="no-referrer" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-sm font-medium">{fb.display_name}</span>
+                                                            <span className="text-xs text-text-muted">{fb.email}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs">{categoryIcons[fb.category] || '📝'} {fb.category}</span>
+                                                            <span className="font-medium text-sm truncate">{fb.subject}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[fb.status] || ''}`}>
+                                                            {fb.status}
+                                                        </span>
+                                                        <span className="text-xs text-text-muted">
+                                                            {new Date(fb.created_at).toLocaleDateString('vi-VN')}
+                                                        </span>
+                                                        <span className="text-text-muted">{isExpanded ? '▲' : '▼'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {isExpanded && (
+                                                <div className="px-4 pb-4 border-t border-border/30 pt-3 space-y-3">
+                                                    <p className="text-sm text-text-secondary whitespace-pre-wrap">{fb.message}</p>
+
+                                                    {fb.screenshot && (
+                                                        <a href={fb.screenshot} target="_blank" rel="noopener noreferrer">
+                                                            <img src={fb.screenshot} alt="Screenshot" className="w-full max-h-48 object-cover rounded-lg border border-border/30 hover:opacity-80 transition-opacity" />
+                                                        </a>
+                                                    )}
+                                                    {fb.admin_reply && (
+                                                        <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
+                                                            <p className="text-xs text-green-400 font-medium mb-1">Your reply — {new Date(fb.replied_at).toLocaleDateString('vi-VN')}</p>
+                                                            <p className="text-sm text-green-200 whitespace-pre-wrap">{fb.admin_reply}</p>
+                                                        </div>
+                                                    )}
+
+                                                    {replyingTo === fb.id ? (
+                                                        <div className="space-y-2">
+                                                            <textarea
+                                                                value={replyText}
+                                                                onChange={e => setReplyText(e.target.value)}
+                                                                placeholder="Type your reply..."
+                                                                rows={3}
+                                                                className="input-field w-full resize-none"
+                                                                autoFocus
+                                                            />
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => handleReply(fb.id)} className="btn-primary text-xs px-4 py-1.5">Send Reply</button>
+                                                                <button onClick={() => { setReplyingTo(null); setReplyText(''); }} className="btn-ghost text-xs px-4 py-1.5">Cancel</button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex gap-2 flex-wrap">
+                                                            <button onClick={() => { setReplyingTo(fb.id); setReplyText(fb.admin_reply || ''); }} className="btn-primary text-xs px-3 py-1.5">
+                                                                {fb.admin_reply ? '✏️ Edit Reply' : '💬 Reply'}
+                                                            </button>
+                                                            {fb.status === 'new' && (
+                                                                <button onClick={() => handleFeedbackStatus(fb.id, 'read')} className="btn-ghost text-xs px-3 py-1.5">👁 Mark Read</button>
+                                                            )}
+                                                            <button onClick={() => handleDeleteFeedback(fb.id)} className="text-xs px-3 py-1.5 rounded-lg bg-danger/10 text-danger hover:bg-danger/20 transition-colors">
+                                                                🗑 Delete
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

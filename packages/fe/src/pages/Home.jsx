@@ -85,6 +85,7 @@ export default function Home() {
                                 src={user?.avatar}
                                 alt={user?.displayName}
                                 className="w-8 h-8 rounded-full border border-border"
+                                referrerPolicy="no-referrer"
                             />
                             <span className="text-sm text-text-secondary hidden sm:inline">{user?.displayName}</span>
                         </div>
