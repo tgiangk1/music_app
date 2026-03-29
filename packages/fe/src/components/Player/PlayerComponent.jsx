@@ -15,6 +15,8 @@ export default function PlayerComponent({
     emitPlayerSync,
     emitPlayerSkip,
     emitPlayerEnded,
+    emitPlayerQuality,
+    onProgressUpdate,
 }) {
     const { onReady, onStateChange, onError, opts } = usePlayer({
         emitPlayerSync,
@@ -22,6 +24,7 @@ export default function PlayerComponent({
         isRoomOwner,
         canControl,
         repeatMode,
+        onProgressUpdate,
     });
 
     const syncedRef = useRef(false);
@@ -51,13 +54,14 @@ export default function PlayerComponent({
         },
     }), [opts, startAt]);
 
-    // Volume Control — local state, persisted in localStorage
-    const [volume, setVolume] = useState(() => {
-        const saved = localStorage.getItem('jukebox_volume');
-        return saved !== null ? parseInt(saved, 10) : 70;
-    });
-    const [isMuted, setIsMuted] = useState(false);
-    const [showVolume, setShowVolume] = useState(false);
+    // Volume Control — shared via Zustand store
+    const volume = usePlayerStore(s => s.volume);
+    const isMuted = usePlayerStore(s => s.isMuted);
+    const showVolume = usePlayerStore(s => s.showVolume);
+    const quality = usePlayerStore(s => s.quality); // Get global quality for sync
+    const storeSetVolume = usePlayerStore(s => s.setVolume);
+    const storeToggleMute = usePlayerStore(s => s.toggleMute);
+    const setShowVolume = usePlayerStore(s => s.setShowVolume);
 
     // Visualizer state
     const [showVisualizer, setShowVisualizer] = useState(() => localStorage.getItem('jukebox_visualizer') === 'on');
@@ -78,19 +82,21 @@ export default function PlayerComponent({
         } catch { }
     }, [volume, isMuted]);
 
-    // Save volume to localStorage
+    // Apply quality to YouTube player (only for guests/non-controllers)
     useEffect(() => {
-        localStorage.setItem('jukebox_volume', volume.toString());
-    }, [volume]);
+        const player = playerRef.current;
+        if (!player || !quality || canControl) return; // host manages their own quality directly
+        try {
+            player.setPlaybackQuality(quality);
+        } catch { }
+    }, [quality, canControl]);
 
     const handleVolumeChange = (e) => {
-        const val = parseInt(e.target.value, 10);
-        setVolume(val);
-        setIsMuted(false);
+        storeSetVolume(parseInt(e.target.value, 10));
     };
 
     const toggleMute = () => {
-        setIsMuted(prev => !prev);
+        storeToggleMute();
     };
 
     // Override onReady to capture player ref and set initial volume
@@ -102,18 +108,23 @@ export default function PlayerComponent({
         } catch { }
         onReady(event);
 
-        // Fallback: if sync data arrives after YouTube loaded, use loadVideoById
+        // Fallback: if sync data arrives after YouTube loaded, catch up quickly
         if (!syncedRef.current) {
             setTimeout(() => {
                 const latestState = usePlayerStore.getState();
                 if (latestState.currentTime > 0 && !syncedRef.current) {
                     syncedRef.current = true;
+                    // Calculate expected time including elapsed since last update
+                    let expectedTime = latestState.currentTime;
+                    if (latestState.updatedAt && latestState.state === 'playing') {
+                        expectedTime += (Date.now() - latestState.updatedAt) / 1000;
+                    }
                     event.target.loadVideoById({
                         videoId: videoId,
-                        startSeconds: Math.floor(latestState.currentTime),
+                        startSeconds: Math.floor(expectedTime),
                     });
                 }
-            }, 2000);
+            }, 500);
         }
     };
 
@@ -184,14 +195,20 @@ export default function PlayerComponent({
     }
 
     return (
-        <div className="glass-card overflow-hidden">
+        <div className="glass-card">
             {/* YouTube Player */}
-            <div className="aspect-video bg-black relative">
+            <div className="aspect-video bg-black relative overflow-hidden rounded-t-2xl">
                 <YouTube
                     videoId={videoId}
                     opts={playerOpts}
                     onReady={handleReady}
                     onStateChange={onStateChange}
+                    onPlaybackQualityChange={(e) => {
+                        // Only host/controllers broadcast their quality changes
+                        if (canControl && emitPlayerQuality) {
+                            emitPlayerQuality(e.data);
+                        }
+                    }}
                     onError={(e) => {
                         onError(e);
                         import('react-hot-toast').then(m => m.default('⚠️ Video unavailable, skipping...', { icon: '⏭️' }));
@@ -199,6 +216,10 @@ export default function PlayerComponent({
                     className="w-full h-full"
                     iframeClassName="w-full h-full"
                 />
+                {/* Block non-controller users from clicking pause on YouTube iframe */}
+                {!canControl && (
+                    <div className="absolute inset-0 z-10" />
+                )}
                 {/* Audio Visualizer Overlay */}
                 {showVisualizer && (
                     <AudioVisualizer
@@ -218,6 +239,7 @@ export default function PlayerComponent({
                         className={`p-1.5 rounded-lg text-xs backdrop-blur-sm transition-all ${
                             showVisualizer ? 'bg-primary/30 text-white' : 'bg-black/40 text-white/60 hover:text-white'
                         }`}
+                        aria-label={showVisualizer ? 'Hide visualizer' : 'Show visualizer'}
                         title="Toggle Visualizer"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -256,15 +278,30 @@ export default function PlayerComponent({
                 </div>
             </div>
 
-            {/* Progress Bar */}
+            {/* Progress Bar — seekable */}
             {currentSong && progress.duration > 0 && (
                 <div className="px-4 pt-2">
-                    <div className="w-full h-1 bg-border/50 rounded-full overflow-hidden">
+                    <div
+                        className="w-full h-2 bg-border/50 rounded-full overflow-hidden cursor-pointer group/progress relative"
+                        role="progressbar"
+                        aria-label="Song progress"
+                        aria-valuenow={Math.floor(progress.current)}
+                        aria-valuemin={0}
+                        aria-valuemax={Math.floor(progress.duration)}
+                        onClick={(e) => {
+                            if (!canControl) return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const percent = (e.clientX - rect.left) / rect.width;
+                            const seekTime = percent * progress.duration;
+                            playerRef.current?.seekTo(seekTime, true);
+                            emitPlayerSync?.({ videoId, state: 'playing', currentTime: seekTime });
+                        }}
+                    >
                         <div
-                            className="h-full rounded-full transition-all duration-1000 ease-linear"
+                            className="h-full rounded-full transition-all duration-1000 ease-linear group-hover/progress:h-full"
                             style={{
                                 width: `${(progress.current / progress.duration) * 100}%`,
-                                background: 'linear-gradient(90deg, rgb(var(--color-primary, 139 92 246)), rgb(var(--color-accent, 167 139 250)))',
+                                background: 'linear-gradient(90deg, rgb(var(--color-primary)), rgb(var(--color-accent)))',
                             }}
                         />
                     </div>
@@ -283,7 +320,7 @@ export default function PlayerComponent({
                             <div className="w-10 h-10 rounded-lg overflow-hidden">
                                 <img
                                     src={currentSong.thumbnail || `https://img.youtube.com/vi/${videoId}/default.jpg`}
-                                    alt=""
+                                    alt={currentSong.title || 'Now playing thumbnail'}
                                     className="w-full h-full object-cover"
                                 />
                             </div>
@@ -309,8 +346,9 @@ export default function PlayerComponent({
                             onMouseLeave={() => setShowVolume(false)}
                         >
                             <button
-                                onClick={toggleMute}
+                                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); toggleMute(); }}
                                 className="btn-ghost p-2 text-text-secondary hover:text-text-primary"
+                                aria-label={isMuted ? 'Unmute' : 'Mute'}
                                 title={isMuted ? 'Unmute' : 'Mute'}
                             >
                                 <VolumeIcon />
@@ -318,11 +356,7 @@ export default function PlayerComponent({
 
                             {/* Volume Slider Popup */}
                             {showVolume && (
-                                <div
-                                    className="absolute bottom-full right-0 pb-0 z-50"
-                                >
-                                    {/* Invisible bridge to prevent hover gap */}
-                                    <div className="absolute bottom-0 left-0 w-full h-2 bg-transparent" />
+                                <div className="absolute bottom-full right-0 pb-2 z-50">
                                     <div
                                         className="p-3 bg-card border border-border rounded-xl shadow-lg"
                                         style={{ width: '40px', height: '130px' }}
@@ -334,6 +368,7 @@ export default function PlayerComponent({
                                                 max="100"
                                                 value={isMuted ? 0 : volume}
                                                 onChange={handleVolumeChange}
+                                                aria-label="Volume"
                                                 className="volume-slider-vertical"
                                                 style={{
                                                     writingMode: 'vertical-lr',
@@ -355,6 +390,7 @@ export default function PlayerComponent({
                             <button
                                 onClick={emitPlayerSkip}
                                 className="btn-ghost p-2 text-text-secondary hover:text-danger"
+                                aria-label="Skip song"
                                 title="Skip song"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

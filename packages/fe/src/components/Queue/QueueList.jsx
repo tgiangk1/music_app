@@ -69,6 +69,7 @@ export default function QueueList({
                                 : 'text-text-muted hover:text-text-secondary hover:bg-card-hover'
                                 }`}
                             title={`Repeat: ${repeatMode}`}
+                            aria-label={`Repeat mode: ${repeatMode}`}
                         >
                             {repeatMode === 'single' ? (
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -87,6 +88,7 @@ export default function QueueList({
                         <button
                             onClick={onShuffle}
                             className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-card-hover transition-all"
+                            aria-label="Shuffle queue"
                             title="Shuffle queue"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -97,7 +99,7 @@ export default function QueueList({
 
                     {/* Clear All */}
                     {isRoomOwner && !isGuest && songs.length > 0 && (
-                        <button onClick={onClear} className="btn-danger text-xs px-3 py-1.5">
+                        <button onClick={onClear} className="btn-danger text-xs px-3 py-1.5" aria-label="Clear all songs from queue">
                             Clear All
                         </button>
                     )}
@@ -160,7 +162,7 @@ export default function QueueList({
                                             >
                                                 {/* Drag handle */}
                                                 {!isGuest && (
-                                                    <div {...provided.dragHandleProps} className="flex-shrink-0 cursor-grab active:cursor-grabbing text-text-muted hover:text-text-secondary p-1 -ml-1 rounded hover:bg-card-hover transition-colors">
+                                                    <div {...provided.dragHandleProps} className="flex-shrink-0 cursor-grab active:cursor-grabbing text-text-muted hover:text-text-secondary p-1 -ml-1 rounded hover:bg-card-hover transition-colors" aria-label="Drag to reorder">
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                                                         </svg>
@@ -190,6 +192,7 @@ export default function QueueList({
                                                     <button
                                                         onClick={() => onRemove(song.id)}
                                                         className="flex-shrink-0 p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 transition-all"
+                                                        aria-label={`Remove ${song.title}`}
                                                     >
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

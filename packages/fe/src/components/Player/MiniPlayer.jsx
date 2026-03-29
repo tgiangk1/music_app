@@ -19,24 +19,7 @@ export default function MiniPlayer({
         ? (progress.current / progress.duration) * 100
         : 0;
 
-    const handlePiP = async () => {
-        try {
-            const iframe = document.querySelector('#main-player iframe');
-            if (!iframe) return;
-            // PiP is only available on video elements, not iframes
-            // Use requestPictureInPicture on a video tag if available
-            const video = iframe.contentDocument?.querySelector('video');
-            if (video && document.pictureInPictureEnabled) {
-                if (document.pictureInPictureElement) {
-                    await document.exitPictureInPicture();
-                } else {
-                    await video.requestPictureInPicture();
-                }
-            }
-        } catch (err) {
-            console.warn('PiP not available:', err);
-        }
-    };
+
 
     return (
         <div className="fixed bottom-0 left-0 right-0 z-40 animate-slide-up">
@@ -57,7 +40,7 @@ export default function MiniPlayer({
                     <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-card relative group">
                         <img
                             src={currentSong.thumbnail || `https://img.youtube.com/vi/${playerState.videoId}/default.jpg`}
-                            alt=""
+                            alt={currentSong.title || 'Now playing thumbnail'}
                             className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
@@ -94,6 +77,7 @@ export default function MiniPlayer({
                             <button
                                 onClick={emitPlayerSkip}
                                 className="p-2 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors"
+                                aria-label="Skip song"
                                 title="Skip song"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -106,6 +90,7 @@ export default function MiniPlayer({
                         <button
                             onClick={() => document.getElementById('main-player')?.scrollIntoView({ behavior: 'smooth' })}
                             className="p-2 rounded-lg text-text-muted hover:text-text-secondary transition-colors"
+                            aria-label="Scroll to player"
                             title="Scroll to player"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

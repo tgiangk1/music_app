@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -9,7 +9,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import PlayerComponent from '../components/Player/PlayerComponent';
 import MiniPlayer from '../components/Player/MiniPlayer';
-import RadioMode from '../components/Player/RadioMode';
+
 import CrossfadeIndicator from '../components/Player/CrossfadeIndicator';
 import QueueList from '../components/Queue/QueueList';
 import QueueHistory from '../components/Queue/QueueHistory';
@@ -21,6 +21,7 @@ import ChatBox from '../components/Social/ChatBox';
 import RoomStats from '../components/Social/RoomStats';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import MobileNav from '../components/MobileNav';
+import ConnectionStatus from '../components/ConnectionStatus';
 import { generateQRCode, generateQRDataURL } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -41,7 +42,7 @@ export default function Room() {
     const [showSidebar, setShowSidebar] = useState(false); // mobile/tablet sidebar toggle
     const [mobileTab, setMobileTab] = useState('player'); // mobile bottom nav: 'player' | 'queue' | 'chat' | 'members'
     const [repeatMode, setRepeatMode] = useState(() => localStorage.getItem('jukebox_repeat') || 'off'); // 'off' | 'single' | 'queue'
-    const [radioModeEnabled, setRadioModeEnabled] = useState(false);
+
     const [crossfadeActive, setCrossfadeActive] = useState(false);
     const [crossfadeProgress, setCrossfadeProgress] = useState(0);
     const [playerProgress, setPlayerProgress] = useState({ current: 0, duration: 0 });
@@ -50,6 +51,22 @@ export default function Room() {
     const profileMenuRef = useRef(null);
 
     const [showSettings, setShowSettings] = useState(false);
+
+    // Click-outside to close profile menu
+    useEffect(() => {
+        if (!showProfileMenu) return;
+        const handleClickOutside = (e) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+                setShowProfileMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, [showProfileMenu]);
 
     const isGuest = !user && !authLoading;
     const isAdmin = user?.role === 'admin';
@@ -61,6 +78,7 @@ export default function Room() {
         emitPlayerSync,
         emitPlayerSkip,
         emitPlayerEnded,
+        emitPlayerQuality,
     } = useSocket(slug);
 
     const {
@@ -139,8 +157,11 @@ export default function Room() {
         playerState: playerState.state,
     });
 
-    const currentSong = songs.find(s => s.is_playing);
-    const queue = songs.filter(s => !s.is_playing);
+    const currentSong = useMemo(() => songs.find(s => s.is_playing), [songs]);
+    const queue = useMemo(() => songs.filter(s => !s.is_playing), [songs]);
+
+    // Progress update callback for MiniPlayer
+    const handleProgressUpdate = useCallback((p) => setPlayerProgress(p), []);
 
     // Repeat mode toggle
     const cycleRepeatMode = () => {
@@ -221,15 +242,15 @@ export default function Room() {
             <div className="flex items-center gap-3">
                 <img
                     src={currentSong.thumbnail || `https://img.youtube.com/vi/${currentSong.youtube_id}/default.jpg`}
-                    alt=""
+                    alt={currentSong.title || 'Now playing'}
                     className="w-10 h-10 rounded-lg object-cover"
                 />
                 <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{currentSong.title}</p>
-                    <p className="text-xs text-gray-400">Now playing</p>
+                    <p className="text-xs text-text-muted">Now playing</p>
                 </div>
             </div>
-        ), { duration: 3000, icon: '🎵', style: { background: '#1e1e2e', color: '#fff', borderRadius: '12px' } });
+        ), { duration: 3000, icon: '🎵', style: { background: 'rgb(var(--color-card))', color: 'rgb(var(--color-text-primary))', borderRadius: '12px' } });
     }, [currentSong?.id]);
 
     // Share Room Link
@@ -273,6 +294,7 @@ export default function Room() {
 
     return (
         <div className="min-h-screen flex flex-col">
+            <ConnectionStatus isConnected={isConnected} />
             {/* Room Header */}
             <header className="border-b border-border bg-surface sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
@@ -314,18 +336,6 @@ export default function Room() {
 
                     <div className="flex items-center gap-1 sm:gap-2">
 
-                        {/* Radio Mode Toggle */}
-                        {!isGuest && (
-                            <button
-                                onClick={() => setRadioModeEnabled(prev => !prev)}
-                                className={`btn-ghost text-sm p-2 hidden sm:flex transition-colors ${radioModeEnabled ? 'text-primary bg-primary/10' : ''}`}
-                                title={radioModeEnabled ? 'Radio Mode ON' : 'Radio Mode OFF'}
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 7.5l16.5-4.125M12 6.75c-2.708 0-5.363.224-7.948.655C2.999 7.58 2.25 8.507 2.25 9.574v9.176A2.25 2.25 0 004.5 21h15a2.25 2.25 0 002.25-2.25V9.574c0-1.067-.75-1.994-1.802-2.169A48.329 48.329 0 0012 6.75z" />
-                                </svg>
-                            </button>
-                        )}
 
                         {/* Room Settings (Owner only) */}
                         {isRoomOwner && (
@@ -446,7 +456,7 @@ export default function Room() {
                     {/* Left: Player + Queue */}
                     <div className={`flex-1 min-w-0 xl:min-w-[600px] space-y-6 ${mobileTab !== 'player' && mobileTab !== 'queue' ? 'hidden md:block' : ''}`}>
                         {/* Player with emoji overlay  16:9 ratio */}
-                        <div ref={playerSectionRef} id="main-player" className="relative aspect-video bg-base rounded-2xl overflow-hidden">
+                        <div ref={playerSectionRef} id="main-player" className="relative bg-base rounded-2xl">
                             <PlayerComponent
                                 videoId={playerState.videoId}
                                 playerState={playerState.state}
@@ -458,6 +468,8 @@ export default function Room() {
                                 emitPlayerSync={emitPlayerSync}
                                 emitPlayerSkip={emitPlayerSkip}
                                 emitPlayerEnded={emitPlayerEnded}
+                                emitPlayerQuality={emitPlayerQuality}
+                                onProgressUpdate={handleProgressUpdate}
                             />
                             {/* Floating emoji reactions overlay */}
                             {!isGuest && <EmojiOverlay socket={socket} />}
@@ -476,16 +488,6 @@ export default function Room() {
                             />
                         )}
 
-                        {/* Radio Mode panel  only visible when enabled */}
-                        {!isGuest && radioModeEnabled && (
-                            <RadioMode
-                                slug={slug}
-                                isEnabled={radioModeEnabled}
-                                onToggle={() => setRadioModeEnabled(prev => !prev)}
-                                onAddSong={addSong}
-                                queueLength={queue.length}
-                            />
-                        )}
 
                         {/* Queue / History tabs */}
                         <div className={mobileTab === 'player' ? 'hidden md:block' : ''}>
@@ -526,29 +528,29 @@ export default function Room() {
                         </div>
                     </div>
 
-                    {/* Right Sidebar  Tabbed */}
-                    {/* Desktop: always visible, fixed 360px */}
-                    {/* Mobile: controlled by mobileTab (chat/members) */}
-                    <div className={`
-                        xl:w-[360px] xl:flex-shrink-0 xl:block xl:relative xl:bg-transparent xl:p-0
-                        ${mobileTab === 'chat' || mobileTab === 'members'
-                            ? 'block md:hidden'
-                            : 'hidden md:hidden xl:block'
+                    {/* Right Sidebar — Tabbed */}
+                    {/* Desktop (xl+): always visible, fixed 360px */}
+                    {/* Tablet (md–xl): overlay via showSidebar toggle */}
+                    {/* Mobile (<md): controlled by mobileTab (chat/members) */}
+                    {(() => {
+                        const isMobileSidebar = mobileTab === 'chat' || mobileTab === 'members';
+                        // Outer container classes
+                        let outerClass = 'xl:w-[360px] xl:flex-shrink-0 xl:block xl:relative xl:bg-transparent xl:p-0 ';
+                        if (isMobileSidebar) {
+                            outerClass += 'block md:hidden';
+                        } else if (showSidebar) {
+                            outerClass += 'hidden md:block xl:block fixed inset-0 z-40 bg-black/60 xl:static xl:z-auto';
+                        } else {
+                            outerClass += 'hidden xl:block';
                         }
-                        ${showSidebar
-                            ? 'fixed inset-0 z-40 bg-black/60 xl:static xl:z-auto hidden md:block xl:hidden'
-                            : 'hidden md:hidden xl:block'
+                        // Inner panel classes
+                        let innerClass = 'xl:sticky xl:top-20 flex flex-col ';
+                        if (showSidebar) {
+                            innerClass += 'absolute right-0 top-0 bottom-0 w-[360px] max-w-[85vw] bg-base border-l border-border p-4 pt-6 animate-fade-in';
                         }
-                    `}
-                        onClick={(e) => { if (e.target === e.currentTarget) setShowSidebar(false); }}
-                    >
-                        <div className={`
-                            xl:sticky xl:top-20 flex flex-col
-                            ${showSidebar
-                                ? 'absolute right-0 top-0 bottom-0 w-[360px] max-w-[85vw] bg-base border-l border-border p-4 pt-6 animate-fade-in'
-                                : ''
-                            }
-                        `}>
+                        return (
+                            <div className={outerClass} onClick={(e) => { if (e.target === e.currentTarget) setShowSidebar(false); }}>
+                                <div className={innerClass}>
                             {/* Close button  mobile/tablet only */}
                             {showSidebar && (
                                 <button
@@ -613,6 +615,8 @@ export default function Room() {
                             </div>
                         </div>
                     </div>
+                        );
+                    })()}
                 </div>
             </main>
 
@@ -624,14 +628,16 @@ export default function Room() {
                 memberCount={onlineMembers.length}
             />
 
-            {/* Mini Player */}
-            <MiniPlayer
-                currentSong={currentSong}
-                isRoomOwner={isRoomOwner}
-                isVisible={showMiniPlayer}
-                emitPlayerSkip={emitPlayerSkip}
-                progress={playerProgress}
-            />
+            {/* Mini Player — hidden on mobile where MobileNav lives */}
+            <div className="hidden md:block">
+                <MiniPlayer
+                    currentSong={currentSong}
+                    isRoomOwner={isRoomOwner}
+                    isVisible={showMiniPlayer}
+                    emitPlayerSkip={emitPlayerSkip}
+                    progress={playerProgress}
+                />
+            </div>
 
             {/* Shortcuts help */}
             <ShortcutsHelp
@@ -642,7 +648,13 @@ export default function Room() {
 
             {/* Share Modal */}
             {showShareModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Share Room"
+                    onKeyDown={(e) => { if (e.key === 'Escape') setShowShareModal(false); }}
+                >
                     <div className="absolute inset-0 bg-black/60" onClick={() => setShowShareModal(false)} />
                     <div className="glass-card p-6 w-full max-w-sm relative z-10 animate-fade-in">
                         <h3 className="font-display text-lg font-bold mb-4 text-center">Share Room</h3>

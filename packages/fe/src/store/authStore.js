@@ -52,7 +52,8 @@ export const useAuthStore = create(
                 try {
                     const res = await api.get('/auth/me');
                     set({ user: res.data.user, isLoading: false });
-                } catch {
+                } catch (err) {
+                    console.warn('[Auth] checkAuth failed:', err.message);
                     set({ user: null, isLoading: false });
                 }
             },

@@ -7,10 +7,11 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, canCon
     const crossfadeRef = useRef(false);
     const savedVolumeRef = useRef(70);
     const lastSyncRef = useRef(null); // Track when we last received a sync
+    const readyAtRef = useRef(0); // Track when onReady fired (to avoid stale sync on join)
 
     const crossfadeDuration = parseInt(localStorage.getItem('jukebox_crossfade') || '3', 10);
 
-    // Periodic sync: controller (owner/DJ/admin) emits currentTime every 5s while playing
+    // Periodic sync: controller (owner/DJ/admin) emits currentTime every 3s while playing
     useEffect(() => {
         if (!canControl || playerState !== 'playing' || !videoId) return;
         const interval = setInterval(() => {
@@ -20,11 +21,11 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, canCon
                     emitPlayerSync?.({ videoId, state: 'playing', currentTime });
                 }
             } catch { }
-        }, 5000);
+        }, 3000);
         return () => clearInterval(interval);
     }, [canControl, playerState, videoId, emitPlayerSync]);
 
-    // Listener drift correction: check every 5s if we're out of sync
+    // Listener drift correction: check every 3s if we're out of sync
     useEffect(() => {
         if (canControl || playerState !== 'playing' || !videoId) return;
         const interval = setInterval(() => {
@@ -43,12 +44,12 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, canCon
                 }
 
                 const drift = Math.abs(localTime - expectedTime);
-                if (drift > 3) {
+                if (drift > 2) {
                     console.log(`🔄 Drift correction: local=${localTime.toFixed(1)}s, expected=${expectedTime.toFixed(1)}s, drift=${drift.toFixed(1)}s`);
                     player.seekTo(expectedTime, true);
                 }
             } catch { }
-        }, 5000);
+        }, 3000);
         return () => clearInterval(interval);
     }, [canControl, playerState, videoId]);
 
@@ -124,6 +125,7 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, canCon
 
     const onReady = useCallback((event) => {
         playerRef.current = event.target;
+        readyAtRef.current = Date.now();
 
         if (playerState === 'playing') {
             // Sync to expected time on ready
@@ -176,6 +178,21 @@ export function usePlayer({ emitPlayerSync, emitPlayerEnded, isRoomOwner, canCon
         // Controller: emit state changes
         if (canControl && ytState === 1) {
             const currentTime = event.target.getCurrentTime();
+
+            // Grace period: when host just joined mid-song, YouTube may report
+            // currentTime ≈ 0 before seek completes. Don't emit stale sync.
+            const timeSinceReady = Date.now() - readyAtRef.current;
+            if (timeSinceReady < 5000) {
+                const storeState = usePlayerStore.getState();
+                const expectedTime = storeState.currentTime || 0;
+                // If server says video should be at e.g. 120s but YouTube reports < 5s,
+                // the seek hasn't completed yet — skip this emit
+                if (expectedTime > 10 && currentTime < 5) {
+                    console.log(`⏭️ Skipping stale sync emit: YT=${currentTime.toFixed(1)}s, expected=${expectedTime.toFixed(1)}s`);
+                    return;
+                }
+            }
+
             emitPlayerSync?.({
                 videoId,
                 state: 'playing',

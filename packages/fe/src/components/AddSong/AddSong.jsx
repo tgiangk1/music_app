@@ -30,7 +30,8 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
             const res = await api.get('/api/youtube/search', { params: { q: q.trim(), limit: 10 } });
             setResults(res.data.results || []);
             setNextPageToken(res.data.nextPage || null);
-        } catch {
+        } catch (err) {
+            console.warn('[Search] YouTube search failed:', err.message);
             setResults([]);
             setNextPageToken(null);
         } finally {
@@ -54,7 +55,8 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                 return [...prev, ...unique];
             });
             setNextPageToken(res.data.nextPage || null);
-        } catch {
+        } catch (err) {
+            console.warn('[Search] Load more failed:', err.message);
             // silently fail
         } finally {
             setIsLoadingMore(false);
@@ -90,8 +92,11 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
         setIsAdding(video.videoId);
         try {
             await onAdd(null, video.videoId, video.title);
-            setResults(prev => prev.filter(r => r.videoId !== video.videoId));
-        } catch {
+            // Clear search after successful add for clean UX
+            setQuery('');
+            setResults([]);
+        } catch (err) {
+            console.warn('[AddSong] Add from search failed:', err.message);
             // Error handled by hook
         } finally {
             setIsAdding(null);
@@ -106,7 +111,8 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
         try {
             await onAdd(url.trim());
             setUrl('');
-        } catch {
+        } catch (err) {
+            console.warn('[AddSong] URL submit failed:', err.message);
             // Error handled by hook
         } finally {
             setIsAdding(null);
@@ -191,7 +197,7 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                                         onClick={() => !isDup && handleAddFromSearch(video)}
                                     >
                                         <div className="flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden bg-base relative">
-                                            <img src={video.thumbnail} alt="" className="w-full h-full object-cover" />
+                                            <img src={video.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
                                             {video.duration && (
                                                 <span className="absolute bottom-0.5 right-0.5 bg-black/80 text-[10px] text-white px-1 rounded font-mono">
                                                     {video.duration}

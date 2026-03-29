@@ -11,6 +11,7 @@ export function useSocket(slug) {
     const socketRef = useRef(null);
     const [onlineMembers, setOnlineMembers] = useState([]);
     const [isConnected, setIsConnected] = useState(false);
+    const wasConnectedRef = useRef(false);
     const accessToken = useAuthStore((s) => s.accessToken);
     const setPlayerState = usePlayerStore((s) => s.setPlayerState);
     const setSongs = useQueueStore((s) => s.setSongs);
@@ -21,6 +22,9 @@ export function useSocket(slug) {
         const socket = io(`${SOCKET_URL}/room/${slug}`, {
             auth: { token: accessToken },
             transports: ['websocket', 'polling'],
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: Infinity,
         });
 
         socketRef.current = socket;
@@ -28,6 +32,18 @@ export function useSocket(slug) {
         socket.on('connect', () => {
             console.log(`🔌 Connected to room: ${slug}`);
             setIsConnected(true);
+
+            // Reconnection: resync state + notify user
+            if (wasConnectedRef.current) {
+                toast.success('Đã kết nối lại!', {
+                    id: 'reconnected',
+                    icon: '🔌',
+                    style: { borderRadius: '100px', background: 'var(--color-card)', color: '#fff', fontSize: '13px' },
+                });
+                // Request fresh state from server
+                socket.emit('room:resync');
+            }
+            wasConnectedRef.current = true;
         });
 
         socket.on('disconnect', () => {
@@ -46,6 +62,12 @@ export function useSocket(slug) {
         // Player sync
         socket.on('player:sync', (state) => {
             setPlayerState(state);
+        });
+
+        // Quality sync — apply quality from host to all listeners
+        socket.on('player:quality', ({ quality }) => {
+            // Store quality so PlayerComponent can apply it
+            usePlayerStore.getState().setQuality?.(quality);
         });
 
         // Queue updates
@@ -168,5 +190,8 @@ export function useSocket(slug) {
         emitPlayerSync,
         emitPlayerSkip,
         emitPlayerEnded,
+        emitPlayerQuality: useCallback((quality) => {
+            socketRef.current?.emit('player:quality', { quality });
+        }, []),
     };
 }

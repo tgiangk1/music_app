@@ -85,6 +85,14 @@ export function initSocketIO(server) {
             socket.nsp.emit('player:sync', stateObj);
         });
 
+        // Quality sync: relay quality changes from controller to all listeners
+        socket.on('player:quality', (data) => {
+            if (!data || typeof data !== 'object') return;
+            const canControl = socket.user.isOwner || socket.user.role === 'admin' || socket.user.roomRole === 'dj';
+            if (!canControl) return;
+            socket.nsp.emit('player:quality', { quality: data.quality });
+        });
+
         socket.on('player:skip', async () => {
             const canControl = socket.user.isOwner || socket.user.role === 'admin' || socket.user.roomRole === 'dj';
             if (!canControl) return socket.emit('notification', { type: 'warning', message: 'Only the room owner or DJs can skip songs' });

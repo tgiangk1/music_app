@@ -1,10 +1,12 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import passport from 'passport';
+import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 
 import { initDatabase } from './config/database.js';
 import './config/passport.js';
@@ -36,7 +38,22 @@ initDatabase();
 const io = initSocketIO(server);
 app.set('io', io);
 
+// Rate limiting
+const generalLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' },
+});
+const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30, // OAuth flow = callback + /me + /refresh → cần đủ room
+    message: { error: 'Too many auth attempts, please try again later.' },
+});
+
 // Middleware
+app.use(compression());
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
@@ -49,6 +66,11 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(passport.initialize());
 app.use('/uploads', express.static('data/uploads'));
+app.use('/api/', generalLimiter);
+app.use('/auth/', authLimiter);
+
+// Health check (used by ApiWarmup for cold start detection)
+app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
 // Routes
 app.use('/auth', authRoutes);

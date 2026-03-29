@@ -1,0 +1,23 @@
+{
+    "name": "SoundDen",
+    "short_name": "SoundDen",
+    "description": "Listen to music together in real-time. Create rooms, share playlists, and vibe with friends.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#181614",
+    "theme_color": "#181614",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "categories": ["music", "entertainment", "social"]
+}

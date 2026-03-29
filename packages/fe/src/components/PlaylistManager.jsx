@@ -143,7 +143,7 @@ export default function PlaylistManager({ isOpen, onClose }) {
                                     <div key={playlist.id} className="bg-surface-900 border border-surface-700 rounded-xl p-4 flex gap-4 hover:border-primary-500/50 transition-colors group">
                                         <div className="w-16 h-16 bg-surface-800 rounded-lg overflow-hidden flex-shrink-0 relative">
                                             {playlist.thumbnail ? (
-                                                <img src={playlist.thumbnail} alt="" className="w-full h-full object-cover" />
+                                                <img src={playlist.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-surface-600">
                                                     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">

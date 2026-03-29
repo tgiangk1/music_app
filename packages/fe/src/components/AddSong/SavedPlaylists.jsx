@@ -225,7 +225,7 @@ export default function SavedPlaylists({ slug }) {
                                                 {playlistDetails[playlist.id]?.songs?.map((song) => (
                                                     <div key={song.youtube_id} className="flex items-center gap-2 p-1.5 hover:bg-surface rounded-lg group text-xs text-text-secondary">
                                                         <div className="flex-shrink-0 w-8 h-6 rounded overflow-hidden relative bg-black/50">
-                                                            <img src={song.thumbnail} alt="" className="w-full h-full object-cover" />
+                                                            <img src={song.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
                                                         </div>
                                                         <div className="flex-1 truncate">
                                                             <span className="truncate">{song.title}</span>

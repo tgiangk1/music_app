@@ -42,7 +42,7 @@ const TABS = [
 
 export default function MobileNav({ activeTab, onTabChange, queueCount = 0, memberCount = 0 }) {
     return (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface/95 backdrop-blur-xl border-t border-border safe-area-bottom">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface/95 backdrop-blur-xl border-t border-border safe-area-bottom" aria-label="Room navigation">
             <div className="flex items-center justify-around h-14">
                 {TABS.map((tab) => {
                     const isActive = activeTab === tab.id;
@@ -57,6 +57,8 @@ export default function MobileNav({ activeTab, onTabChange, queueCount = 0, memb
                         <button
                             key={tab.id}
                             onClick={() => onTabChange(tab.id)}
+                            aria-label={tab.label}
+                            aria-current={isActive ? 'page' : undefined}
                             className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${isActive ? 'text-primary' : 'text-text-muted'
                                 }`}
                         >

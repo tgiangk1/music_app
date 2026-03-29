@@ -1,9 +1,12 @@
 import { useEffect, useCallback, useState } from 'react';
+import { usePlayerStore } from '../store/playerStore';
 
 /**
  * Feature 6: Keyboard shortcuts for player control
  * Space = play/pause (owner only)
  * ArrowRight = skip (owner only)
+ * ArrowUp/ArrowDown = volume ±5 (all users)
+ * M = toggle mute (all users)
  * ? = toggle shortcuts help
  */
 export function useKeyboardShortcuts({
@@ -39,6 +42,25 @@ export function useKeyboardShortcuts({
                     e.preventDefault();
                     emitPlayerSkip?.();
                 }
+                break;
+
+            case 'ArrowUp': {
+                e.preventDefault();
+                const { volume, setVolume } = usePlayerStore.getState();
+                setVolume(volume + 5);
+                break;
+            }
+
+            case 'ArrowDown': {
+                e.preventDefault();
+                const { volume, setVolume } = usePlayerStore.getState();
+                setVolume(volume - 5);
+                break;
+            }
+
+            case 'm':
+            case 'M':
+                usePlayerStore.getState().toggleMute();
                 break;
 
             case '?':
