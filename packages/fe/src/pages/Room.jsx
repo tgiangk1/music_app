@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { React, useEffect, useState, useRef, useCallback, useMemo, Suspense, lazy } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -14,14 +14,23 @@ import CrossfadeIndicator from '../components/Player/CrossfadeIndicator';
 import QueueList from '../components/Queue/QueueList';
 import QueueHistory from '../components/Queue/QueueHistory';
 import AddSong from '../components/AddSong/AddSong';
-import MembersList from '../components/Members/MembersList';
 import ShortcutsHelp from '../components/ShortcutsHelp';
 import { EmojiOverlay } from '../components/Social/EmojiReactions';
-import ChatBox from '../components/Social/ChatBox';
-import RoomStats from '../components/Social/RoomStats';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import MobileNav from '../components/MobileNav';
 import ConnectionStatus from '../components/ConnectionStatus';
+
+// Heavy sidebar components — lazy-loaded to reduce initial Room chunk
+const ChatBox = lazy(() => import('../components/Social/ChatBox'));
+const MembersList = lazy(() => import('../components/Members/MembersList'));
+const RecommendedTracks = lazy(() => import('../components/RecommendedTracks'));
+const PersonalStats = lazy(() => import('../components/Social/PersonalStats'));
+const Leaderboard = lazy(() => import('../components/Social/Leaderboard'));
+const RoomStats = lazy(() => import('../components/Social/RoomStats'));
+const Suggestions = lazy(() => import('../components/Queue/Suggestions'));
+
+import NotificationBell from '../components/NotificationBell';
+import ListeningAvatars from '../components/Social/ListeningAvatars';
 import { generateQRCode, generateQRDataURL } from '../lib/qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -35,7 +44,7 @@ export default function Room() {
     const [room, setRoom] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [sidebarTab, setSidebarTab] = useState('chat'); // 'chat' | 'members' | 'stats'
-    const [queueTab, setQueueTab] = useState('queue'); // 'queue' | 'history'
+    const [queueTab, setQueueTab] = useState('queue'); // 'queue' | 'history' | 'suggest'
     const [showMiniPlayer, setShowMiniPlayer] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -51,6 +60,7 @@ export default function Room() {
     const profileMenuRef = useRef(null);
 
     const [showSettings, setShowSettings] = useState(false);
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
     // Click-outside to close profile menu
     useEffect(() => {
@@ -85,6 +95,7 @@ export default function Room() {
         songs,
         isLoading: queueLoading,
         addSong,
+        voteSong,
         removeSong,
         clearQueue,
         reorderQueue,
@@ -384,6 +395,19 @@ export default function Room() {
 
                         <ThemeSwitcher />
 
+                        {!isGuest && <ListeningAvatars members={onlineMembers} />}
+
+                        {/* Role badge — shows what you can do in this room */}
+                        {!isGuest && canControl && (
+                            <span
+                                className="hidden md:inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-primary/10 text-primary"
+                                title={isRoomOwner ? 'You own this room — full playback control' : 'You are a DJ here — you can control the player and skip songs'}
+                            >
+                                {isRoomOwner ? '👑 Owner' : '🎧 DJ'}
+                            </span>
+                        )}
+
+                        {!isGuest && <NotificationBell />}
 
                         {/* User Avatar / Profile Dropdown */}
                         {!isGuest ? (
@@ -491,7 +515,7 @@ export default function Room() {
 
                         {/* Queue / History tabs */}
                         <div className={mobileTab === 'player' ? 'hidden md:block' : ''}>
-                            <div className="flex gap-1 mb-4 bg-surface rounded-xl p-1 max-w-xs">
+                            <div className="flex gap-1 mb-4 bg-surface rounded-xl p-1 max-w-sm">
                                 <button
                                     onClick={() => setQueueTab('queue')}
                                     className={`flex-1 text-sm py-2 px-4 rounded-lg transition-all font-medium
@@ -506,9 +530,22 @@ export default function Room() {
                                 >
                                     History
                                 </button>
+                                {!isGuest && (
+                                    <button
+                                        onClick={() => setQueueTab('suggest')}
+                                        className={`flex-1 text-sm py-2 px-4 rounded-lg transition-all font-medium
+                    ${queueTab === 'suggest' ? 'bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                                    >
+                                        🗳️ Suggest
+                                    </button>
+                                )}
                             </div>
 
-                            {queueTab === 'queue' ? (
+                            {queueTab === 'suggest' && !isGuest ? (
+                                <Suspense fallback={<div className="skeleton h-[450px] rounded-xl" />}>
+                                    <Suggestions slug={slug} socket={socket} userId={user?.id} isRoomOwner={isRoomOwner} />
+                                </Suspense>
+                            ) : queueTab === 'queue' ? (
                                 <QueueList
                                     songs={queue}
                                     isLoading={queueLoading}
@@ -519,11 +556,21 @@ export default function Room() {
                                     onClear={clearQueue}
                                     onReorder={reorderQueue}
                                     onShuffle={shuffleQueue}
+                                    onVote={voteSong}
                                     repeatMode={repeatMode}
                                     onRepeatToggle={cycleRepeatMode}
                                 />
                             ) : (
                                 <QueueHistory slug={slug} onReplay={addSong} />
+                            )}
+
+                            {/* Personalized recommendations — hidden for guests and history tab */}
+                            {queueTab === 'queue' && !isGuest && (
+                                <div className="mt-6">
+                                    <Suspense fallback={<div className="skeleton h-48 rounded-xl" />}>
+                                        <RecommendedTracks roomSlug={slug} />
+                                    </Suspense>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -590,6 +637,7 @@ export default function Room() {
 
                             {/* Tab Content  fill remaining height */}
                             <div className="flex-1 min-h-0">
+                                <Suspense fallback={<SidebarSkeleton />}>
                                 {(sidebarTab === 'chat' || mobileTab === 'chat') && (
                                     !isGuest ? (
                                         <ChatBox socket={socket} onlineMembers={onlineMembers} />
@@ -610,8 +658,13 @@ export default function Room() {
                                     />
                                 )}
                                 {sidebarTab === 'stats' && (
-                                    <RoomStats slug={slug} />
+                                    <div className="space-y-4">
+                                        {!isGuest && <PersonalStats slug={slug} socket={socket} />}
+                                        <Leaderboard slug={slug} />
+                                        <RoomStats slug={slug} />
+                                    </div>
                                 )}
+                                </Suspense>
                             </div>
                         </div>
                     </div>
@@ -736,6 +789,13 @@ export default function Room() {
                     </div>
                 </div>
             )}
+            {/* Advanced Room Settings (Blocklist / Schedule / Slack) */}
+            <AdvancedRoomSettings
+                isOpen={showAdvancedSettings}
+                onClose={() => setShowAdvancedSettings(false)}
+                slug={slug}
+            />
+
             {/* Room Settings Modal */}
             {showSettings && (
                 <RoomSettingsModal
@@ -743,17 +803,60 @@ export default function Room() {
                     slug={slug}
                     onClose={() => setShowSettings(false)}
                     onUpdated={(updatedRoom) => setRoom(prev => ({ ...prev, ...updatedRoom }))}
+                    onOpenAdvanced={() => { setShowSettings(false); setShowAdvancedSettings(true); }}
                 />
             )}
         </div>
     );
 }
 
-function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
+function SidebarSkeleton() {
+    return (
+        <div className="space-y-3">
+            <div className="skeleton h-10 rounded-xl" />
+            <div className="skeleton h-24 rounded-xl" />
+            <div className="skeleton h-24 rounded-xl" />
+            <div className="skeleton h-24 rounded-xl" />
+        </div>
+    );
+}
+
+function RoomSettingsModal({ room, slug, onClose, onUpdated, onOpenAdvanced }) {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [autoplayEnabled, setAutoplayEnabled] = useState(room?.autoplay_enabled !== 0);
+
+    // Theme state
+    const THEME_ICONS = ['🎵', '🎸', '🎹', '🎧', '🎤', '🎷', '🥁', '🎻', '🎺', '🎶', '💿', '🎙️'];
+    const THEME_COLORS = ['#8b5cf6', '#c8a87c', '#8aad7c', '#c47a6a', '#6b9ec4', '#b89c6b', '#7ca5a5', '#9b8ab5'];
+    const THEME_GRADIENTS = [
+        'linear-gradient(135deg, #667eea, #764ba2)',
+        'linear-gradient(135deg, #f093fb, #f5576c)',
+        'linear-gradient(135deg, #4facfe, #00f2fe)',
+        'linear-gradient(135deg, #43e97b, #38f9d7)',
+        'linear-gradient(135deg, #fa709a, #fee140)',
+        'linear-gradient(135deg, #a18cd1, #fbc2eb)',
+    ];
+    const [themeIcon, setThemeIcon] = useState(room?.room_icon || '🎵');
+    const [themeColor, setThemeColor] = useState(room?.cover_color || '#8b5cf6');
+    const [isSavingTheme, setIsSavingTheme] = useState(false);
+    const [themeSaved, setThemeSaved] = useState(false);
+
+    const handleSaveTheme = async () => {
+        setIsSavingTheme(true);
+        try {
+            const res = await api.patch(`/api/rooms/${slug}`, { roomIcon: themeIcon, coverColor: themeColor });
+            toast.success('Room theme updated!');
+            setThemeSaved(true);
+            setTimeout(() => setThemeSaved(false), 2000);
+            onUpdated(res.data.room);
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to update theme');
+        } finally {
+            setIsSavingTheme(false);
+        }
+    };
 
     const handleSavePassword = async () => {
         setIsSubmitting(true);
@@ -885,7 +988,57 @@ function RoomSettingsModal({ room, slug, onClose, onUpdated }) {
                     </div>
                 </div>
 
+                {/* Theme Section */}
                 <div className="mt-5 pt-4 border-t border-border">
+                    <label className="block text-sm text-text-secondary mb-2 flex items-center gap-1.5">
+                        🎨 Room Theme
+                    </label>
+                    <p className="text-xs text-text-muted mb-3">Icon and color shown on the room card and header.</p>
+
+                    <div className="grid grid-cols-6 gap-1.5 mb-3">
+                        {THEME_ICONS.map(icon => (
+                            <button
+                                key={icon}
+                                onClick={() => setThemeIcon(icon)}
+                                className={`aspect-square rounded-lg flex items-center justify-center text-lg transition-all ${themeIcon === icon ? 'bg-primary/20 ring-2 ring-primary' : 'bg-surface hover:bg-card-hover'}`}
+                                aria-label={`Icon ${icon}`}
+                            >
+                                {icon}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        {[...THEME_COLORS, ...THEME_GRADIENTS].map(color => (
+                            <button
+                                key={color}
+                                onClick={() => setThemeColor(color)}
+                                className={`w-7 h-7 rounded-full border-2 transition-all ${themeColor === color ? 'border-text-primary scale-110' : 'border-transparent hover:scale-105'}`}
+                                style={{ background: color }}
+                                aria-label={`Color ${color}`}
+                            />
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={handleSaveTheme}
+                        disabled={isSavingTheme || (themeIcon === room?.room_icon && themeColor === room?.cover_color)}
+                        className="btn-primary w-full text-sm disabled:opacity-50"
+                    >
+                        {isSavingTheme ? 'Saving...' : themeSaved ? '✓ Saved' : 'Save Theme'}
+                    </button>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-border">
+                    <button
+                        onClick={onOpenAdvanced}
+                        className="btn-ghost w-full text-sm mb-2 flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                        </svg>
+                        Blocklist, Schedule &amp; Slack
+                    </button>
                     <button onClick={onClose} className="btn-ghost w-full text-sm">Close</button>
                 </div>
             </div>

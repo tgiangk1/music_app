@@ -93,6 +93,28 @@ export function initSocketIO(server) {
             socket.nsp.emit('player:quality', { quality: data.quality });
         });
 
+        // Full state resync after client reconnect
+        socket.on('room:resync', () => {
+            try {
+                const db = getDb();
+                const state = playerStates.get(slug);
+                if (state) {
+                    const syncState = { ...state };
+                    if (syncState.state === 'playing' && syncState.updatedAt) {
+                        const elapsed = (Date.now() - new Date(syncState.updatedAt).getTime()) / 1000;
+                        syncState.currentTime = (syncState.currentTime || 0) + elapsed;
+                    }
+                    socket.emit('player:sync', syncState);
+                }
+                const queue = db.prepare(`SELECT s.*, u.display_name as added_by_name, u.avatar as added_by_avatar FROM songs s JOIN users u ON s.added_by = u.id WHERE s.room_id = ? ORDER BY s.is_playing DESC, s.vote_score DESC, s.position ASC, s.created_at ASC`).all(socket.roomId);
+                socket.emit('queue:updated', queue);
+                const members = Array.from(onlineMembers.get(slug)?.values() || []);
+                socket.emit('member:list', [...new Map(members.map(m => [m.userId, m])).values()]);
+            } catch (err) {
+                console.error('Resync error:', err.message);
+            }
+        });
+
         socket.on('player:skip', async () => {
             const canControl = socket.user.isOwner || socket.user.role === 'admin' || socket.user.roomRole === 'dj';
             if (!canControl) return socket.emit('notification', { type: 'warning', message: 'Only the room owner or DJs can skip songs' });

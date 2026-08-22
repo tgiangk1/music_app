@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
-export default function QueueList({
+function QueueListInner({
     songs,
     isLoading,
     isRoomOwner,
@@ -11,9 +11,12 @@ export default function QueueList({
     onClear,
     onReorder,
     onShuffle,
+    onVote,
     repeatMode,
     onRepeatToggle,
 }) {
+    const [searchQuery, setSearchQuery] = useState('');
+
     const handleDragEnd = (result) => {
         if (!result.destination) return;
 
@@ -38,8 +41,6 @@ export default function QueueList({
             </div>
         );
     }
-
-    const [searchQuery, setSearchQuery] = useState('');
 
     const filteredSongs = searchQuery.trim()
         ? songs.filter(s =>
@@ -160,10 +161,10 @@ export default function QueueList({
                                                 className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group
                           ${snapshot.isDragging ? 'bg-card border border-primary/20' : 'bg-surface/50 hover:bg-card-hover'}`}
                                             >
-                                                {/* Drag handle */}
+                                                {/* Drag handle — larger touch target on mobile */}
                                                 {!isGuest && (
-                                                    <div {...provided.dragHandleProps} className="flex-shrink-0 cursor-grab active:cursor-grabbing text-text-muted hover:text-text-secondary p-1 -ml-1 rounded hover:bg-card-hover transition-colors" aria-label="Drag to reorder">
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                                    <div {...provided.dragHandleProps} className="flex-shrink-0 cursor-grab active:cursor-grabbing text-text-muted hover:text-text-secondary p-2 -ml-1.5 rounded-lg hover:bg-card-hover active:bg-card-hover transition-colors" aria-label="Drag to reorder">
+                                                        <svg className="w-5 h-5 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                                                         </svg>
                                                     </div>
@@ -187,11 +188,40 @@ export default function QueueList({
                                                     </p>
                                                 </div>
 
-                                                {/* Remove button */}
+                                                {/* Vote buttons — primary mobile interaction */}
+                                                {!isGuest && onVote && (
+                                                    <div className="flex-shrink-0 flex flex-col items-center rounded-lg bg-surface/80 border border-border/50 overflow-hidden">
+                                                        <button
+                                                            onClick={() => onVote(song.id, 'up')}
+                                                            className={`px-2 pt-1 pb-0.5 transition-colors active:scale-90 ${song.my_vote === 'up' ? 'text-primary bg-primary/10' : 'text-text-muted hover:text-primary'}`}
+                                                            aria-label={`Upvote ${song.title}`}
+                                                        >
+                                                            <svg className="w-4 h-4" fill={song.my_vote === 'up' ? 'currentColor' : 'none'} viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                                                            </svg>
+                                                        </button>
+                                                        {(song.vote_score || 0) !== 0 && (
+                                                            <span className={`text-[10px] font-bold leading-none py-0.5 ${(song.vote_score || 0) > 0 ? 'text-primary' : 'text-danger'}`}>
+                                                                {song.vote_score > 0 ? '+' : ''}{song.vote_score}
+                                                            </span>
+                                                        )}
+                                                        <button
+                                                            onClick={() => onVote(song.id, 'down')}
+                                                            className={`px-2 pt-0.5 pb-1 transition-colors active:scale-90 ${song.my_vote === 'down' ? 'text-danger bg-danger/10' : 'text-text-muted hover:text-danger'}`}
+                                                            aria-label={`Downvote ${song.title}`}
+                                                        >
+                                                            <svg className="w-4 h-4" fill={song.my_vote === 'down' ? 'currentColor' : 'none'} viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Remove button — always visible on touch devices */}
                                                 {!isGuest && (isRoomOwner || song.added_by === userId) && (
                                                     <button
                                                         onClick={() => onRemove(song.id)}
-                                                        className="flex-shrink-0 p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 opacity-0 group-hover:opacity-100 transition-all"
+                                                        className="flex-shrink-0 p-2 rounded-lg text-text-muted hover:text-danger active:text-danger active:bg-danger/10 hover:bg-danger/10 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-all"
                                                         aria-label={`Remove ${song.title}`}
                                                     >
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -212,3 +242,6 @@ export default function QueueList({
         </div>
     );
 }
+
+const QueueList = memo(QueueListInner);
+export default QueueList;

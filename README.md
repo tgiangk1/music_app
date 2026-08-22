@@ -1,4 +1,4 @@
-# Antigravity Jukebox 🎵
+# SoundDen 🎵
 
 A real-time collaborative music listening app for teams. Each team gets their own room with an independent queue, YouTube player, and real-time sync via Socket.IO.
 
@@ -7,9 +7,19 @@ A real-time collaborative music listening app for teams. Each team gets their ow
 - 🔐 **Google OAuth** — login with your company Google account
 - 🏠 **Room System** — public/private rooms per team with independent queues
 - 🎶 **YouTube Playback** — paste a URL, fetch metadata, play it
-- 🗳️ **Voting** — upvote/downvote to reorder the queue
+- 🗳️ **Voting** — upvote/downvote to reorder the queue in real time
 - ⚡ **Real-time Sync** — player state syncs across all browsers in a room
 - 👑 **Admin Controls** — skip songs, clear queue, manage users, ban/unban
+- 💬 **Chat & Reactions** — live chat with replies, @mentions and emoji reactions
+- 🧠 **Smart Autoplay** — keeps the music going when the queue runs dry
+- ⭐ **Recommendations** — personalized track suggestions from listening history
+- 🔔 **Notifications** — in-app notification center + web push (PWA)
+- 📅 **Room Scheduling** — schedule room openings with member notifications
+- 🚫 **Blocklist** — block channels/videos per room
+- 💬 **Slack Integration** — post new-song alerts to Slack channels
+- 🏆 **Gamification** — leaderboards, achievements, streaks, weekly Wrapped
+- 🎧 **Playlists** — save queues, create playlists, import YouTube playlists
+- 🖥️ **Embed Mode** — embed a read-only room player anywhere
 
 ## Tech Stack
 

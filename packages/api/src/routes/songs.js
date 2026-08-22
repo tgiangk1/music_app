@@ -5,22 +5,25 @@ import { verifyToken, optionalAuth } from '../middlewares/auth.js';
 import { requireRoomOwnerOrAdmin } from '../middlewares/role.js';
 import { fetchVideoMetadata } from '../services/youtube.js';
 import { logActivity } from '../services/socket.js';
+import { notifySlackSongAdded } from '../services/slack.js';
 
 const router = Router();
 
-function getQueueForRoom(roomId) {
+function getQueueForRoom(roomId, userId = null) {
     const db = getDb();
     return db.prepare(`
-    SELECT s.*, u.display_name as added_by_name, u.avatar as added_by_avatar
+    SELECT s.*, u.display_name as added_by_name, u.avatar as added_by_avatar,
+           (SELECT v.type FROM votes v WHERE v.song_id = s.id AND v.user_id = ?) as my_vote
     FROM songs s
     JOIN users u ON s.added_by = u.id
     WHERE s.room_id = ?
-    ORDER BY s.is_playing DESC, s.position ASC, s.created_at ASC
-  `).all(roomId);
+    ORDER BY s.is_playing DESC, s.vote_score DESC, s.position ASC, s.created_at ASC
+  `).all(userId || null, roomId);
 }
 
 function emitQueueUpdate(req, roomSlug, roomId) {
     const io = req.app.get('io');
+    if (!io) return;
     const roomNsp = io.of(`/room/${roomSlug}`);
     const queue = getQueueForRoom(roomId);
     roomNsp.emit('queue:updated', queue);
@@ -38,7 +41,42 @@ router.get('/:slug/songs', optionalAuth, (req, res) => {
     const db = getDb();
     const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
     if (!room) return res.status(404).json({ error: 'Room not found' });
-    res.json({ songs: getQueueForRoom(room.id) });
+    res.json({ songs: getQueueForRoom(room.id, req.user?.userId) });
+});
+
+// Vote on a queue song (up/down). Voting again with same type toggles off.
+router.post('/:slug/songs/:id/vote', verifyToken, (req, res) => {
+    const { type } = req.body;
+    if (!['up', 'down'].includes(type)) {
+        return res.status(400).json({ error: 'Vote type must be "up" or "down"' });
+    }
+
+    const db = getDb();
+    const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+
+    const song = db.prepare('SELECT * FROM songs WHERE id = ? AND room_id = ?').get(req.params.id, room.id);
+    if (!song) return res.status(404).json({ error: 'Song not found' });
+
+    let delta = 0;
+    const existing = db.prepare('SELECT type FROM votes WHERE song_id = ? AND user_id = ?').get(song.id, req.user.userId);
+
+    if (existing && existing.type === type) {
+        db.prepare('DELETE FROM votes WHERE song_id = ? AND user_id = ?').run(song.id, req.user.userId);
+        delta = type === 'up' ? -1 : 1;
+    } else if (existing) {
+        db.prepare('UPDATE votes SET type = ? WHERE song_id = ? AND user_id = ?').run(type, song.id, req.user.userId);
+        delta = type === 'up' ? 2 : -2;
+    } else {
+        db.prepare('INSERT INTO votes (song_id, user_id, type) VALUES (?, ?, ?)').run(song.id, req.user.userId, type);
+        delta = type === 'up' ? 1 : -1;
+    }
+
+    db.prepare('UPDATE songs SET vote_score = vote_score + ? WHERE id = ?').run(delta, song.id);
+    emitQueueUpdate(req, req.params.slug, room.id);
+
+    const updated = getQueueForRoom(room.id, req.user.userId).find(s => s.id === song.id);
+    res.json({ song: updated });
 });
 
 router.post('/:slug/songs', verifyToken, async (req, res) => {
@@ -75,6 +113,16 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
         if (existing && !force) return res.status(409).json({ error: 'This song is already in the queue', code: 'DUPLICATE_IN_QUEUE', existingSongId: existing.id });
         if (existing && force) return res.status(200).json({ message: 'Song already in queue', existing: true });
 
+        const blocked = db.prepare(`SELECT type, value FROM room_blocklist WHERE room_id = ? AND (type = 'video' AND value = ? OR type = 'channel' AND value = ?)`).get(room.id, metadata.videoId, metadata.channelName || '');
+        if (blocked) {
+            return res.status(403).json({
+                error: blocked.type === 'channel'
+                    ? `Channel "${blocked.value}" is blocked in this room`
+                    : 'This video is blocked in this room',
+                code: 'SONG_BLOCKED',
+            });
+        }
+
         const inHistory = db.prepare('SELECT id FROM song_history WHERE room_id = ? AND youtube_id = ? ORDER BY played_at DESC LIMIT 1').get(room.id, metadata.videoId);
         const maxPos = db.prepare('SELECT MAX(position) as pos FROM songs WHERE room_id = ?').get(room.id);
         const position = (maxPos?.pos || 0) + 1;
@@ -89,13 +137,15 @@ router.post('/:slug/songs', verifyToken, async (req, res) => {
             const stateObj = { videoId: metadata.videoId, state: 'playing', currentTime: 0, updatedAt: new Date().toISOString(), updatedBy: req.user.userId };
             playerStates.set(req.params.slug, stateObj);
             const io = req.app.get('io');
-            io.of(`/room/${req.params.slug}`).emit('player:sync', stateObj);
+            io?.of(`/room/${req.params.slug}`).emit('player:sync', stateObj);
         }
 
         emitQueueUpdate(req, req.params.slug, room.id);
         const io = req.app.get('io');
-        io.of(`/room/${req.params.slug}`).emit('song:added', { title: metadata.title, addedBy: req.user.displayName, thumbnail: metadata.thumbnail });
+        io?.of(`/room/${req.params.slug}`).emit('song:added', { title: metadata.title, addedBy: req.user.displayName, thumbnail: metadata.thumbnail });
         logActivity(db, room.id, req.user.userId, 'song_add', { songTitle: metadata.title });
+
+        notifySlackSongAdded(room.id, room.slug, room.name, metadata.title, req.user.displayName, metadata.thumbnail, url).catch(() => { });
 
         const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(id);
         res.status(201).json({ song, wasInHistory: !!inHistory });

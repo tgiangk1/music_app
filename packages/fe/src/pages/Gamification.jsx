@@ -113,8 +113,11 @@ export default function Gamification() {
 
                 {/* Content */}
                 {loading ? (
-                    <div className="flex items-center justify-center py-20">
-                        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="space-y-3">
+                        <div className="skeleton h-10 w-64 rounded-lg" />
+                        {[1, 2, 3, 4, 5].map(i => (
+                            <div key={i} className="skeleton h-16 rounded-xl" style={{ animationDelay: `${i * 60}ms` }} />
+                        ))}
                     </div>
                 ) : (
                     <>
@@ -318,6 +321,27 @@ function StreaksTab({ streak }) {
 
 // ==================== WRAPPED TAB ====================
 function WrappedTab({ data }) {
+    const user = useAuthStore(s => s.user);
+    const [copied, setCopied] = useState(false);
+
+    const handleShare = async () => {
+        if (!data || !user) return;
+        const hours = data.listeningHours;
+        let text = `🎧 My week in music on SoundDen:\n\n🎵 ${data.totalSongs} songs played\n⏱️ ${hours}h listened\n🏠 ${data.roomsVisited} rooms visited`;
+        if (data.topSongs?.length > 0) {
+            text += `\n\n🏆 Top track: ${data.topSongs[0].title}`;
+        }
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: 'My SoundDen Wrapped', text });
+                return;
+            } catch { /* fall through to clipboard */ }
+        }
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     if (!data) return (
         <div className="glass-card p-12 text-center">
             <p className="text-4xl mb-3">📊</p>
@@ -327,6 +351,19 @@ function WrappedTab({ data }) {
 
     return (
         <div className="space-y-4">
+            {/* Share button */}
+            <div className="flex justify-end">
+                <button
+                    onClick={handleShare}
+                    className="btn-primary text-sm px-4 py-2 flex items-center gap-2"
+                >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                    </svg>
+                    {copied ? 'Copied!' : 'Share'}
+                </button>
+            </div>
+
             {/* Stats grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <StatCard icon="🎵" label="Songs Played" value={data.totalSongs} color="#06b6d4" />

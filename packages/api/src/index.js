@@ -11,6 +11,7 @@ import compression from 'compression';
 import { initDatabase } from './config/database.js';
 import './config/passport.js';
 import { initSocketIO } from './services/socket.js';
+import { initScheduler } from './services/scheduler.js';
 
 import authRoutes from './routes/auth.js';
 import roomRoutes from './routes/rooms.js';
@@ -27,6 +28,12 @@ import ogRoutes from './routes/og.js';
 import gamificationRoutes from './routes/gamification.js';
 import pushRoutes from './routes/push.js';
 import feedbackRoutes from './routes/feedback.js';
+import recommendationRoutes from './routes/recommendations.js';
+import notificationRoutes from './routes/notifications.js';
+import blocklistRoutes from './routes/blocklist.js';
+import scheduleRoutes from './routes/schedules.js';
+import integrationRoutes from './routes/integrations.js';
+import suggestionRoutes from './routes/suggestions.js';
 
 const app = express();
 const server = createServer(app);
@@ -88,11 +95,12 @@ app.use('/api/og', ogRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/feedback', feedbackRoutes);
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/rooms', blocklistRoutes);
+app.use('/api/rooms', scheduleRoutes);
+app.use('/api/rooms', integrationRoutes);
+app.use('/api/rooms', suggestionRoutes);
 
 // 404
 app.use((req, res) => {
@@ -110,6 +118,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🎵 SoundDen API running on port ${PORT}`);
+
+  // Background: room schedule trigger (cron every minute)
+  initScheduler();
 
   // Background: backfill song_history duration=0
   (async () => {

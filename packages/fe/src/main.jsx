@@ -20,6 +20,8 @@ const Explore = React.lazy(() => import('./pages/Explore'))
 const Profile = React.lazy(() => import('./pages/Profile'))
 const Gamification = React.lazy(() => import('./pages/Gamification'))
 const NotFound = React.lazy(() => import('./pages/NotFound'))
+const Embed = React.lazy(() => import('./pages/Embed'))
+const EmbedRoom = React.lazy(() => import('./pages/EmbedRoom'))
 
 const PageLoader = () => (
     <div className="min-h-screen flex items-center justify-center bg-base">
@@ -58,6 +60,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                             <Gamification />
                         </ProtectedRoute>
                     } />
+                    <Route path="/embed/:slug" element={<Embed />} />
+                    <Route path="/embedroom/:slug" element={<EmbedRoom />} />
                     <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>

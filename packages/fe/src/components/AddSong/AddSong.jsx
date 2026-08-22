@@ -103,16 +103,27 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
         }
     };
 
-    // Add song from URL
+    // Add song from URL (supports YouTube + Spotify track links)
     const handleUrlSubmit = async (e) => {
         e.preventDefault();
         if (!url.trim() || isAdding) return;
         setIsAdding('url');
         try {
-            await onAdd(url.trim());
+            const trimmed = url.trim();
+            if (/spotify\.com\/(intl-[a-z]{2}\/)?track\//.test(trimmed)) {
+                toast('Resolving Spotify track…', { icon: '🎧', id: 'spotify-resolve' });
+                const res = await api.post('/api/youtube/resolve-link', { url: trimmed });
+                const match = res.data?.match;
+                if (!match?.videoId) throw new Error('No YouTube match found');
+                toast.success(`Found: ${match.title}`, { id: 'spotify-resolve' });
+                await onAdd(null, match.videoId, match.title);
+            } else {
+                await onAdd(trimmed);
+            }
             setUrl('');
         } catch (err) {
             console.warn('[AddSong] URL submit failed:', err.message);
+            toast.dismiss('spotify-resolve');
             // Error handled by hook
         } finally {
             setIsAdding(null);
@@ -257,7 +268,7 @@ export default function SearchAddSong({ onAdd, slug, songs = [] }) {
                         onChange={(e) => setUrl(e.target.value)}
                         onPaste={handlePaste}
                         className="input-field flex-1"
-                        placeholder="Paste YouTube URL..."
+                        placeholder="Paste YouTube or Spotify URL..."
                         disabled={isAdding === 'url'}
                     />
                     <button

@@ -8,7 +8,7 @@
 services:
   # Backend API (Node.js + Express + SQLite)
   - type: web
-    name: antigravity-jukebox-api
+    name: soundden-api
     runtime: node
     region: singapore     # closest to Vietnam
     plan: free
@@ -39,7 +39,7 @@ services:
       - key: FIRST_ADMIN_EMAIL
         sync: false
     disk:
-      name: jukebox-data
+      name: soundden-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1            # persistent disk for SQLite
     healthCheckPath: /health

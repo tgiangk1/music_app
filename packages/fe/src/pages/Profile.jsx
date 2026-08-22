@@ -2,6 +2,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import ThemeSwitcher from '../components/ThemeSwitcher';
+import PlaylistManager from '../components/PlaylistManager';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -22,6 +23,7 @@ export default function Profile() {
   const [recentSongs, setRecentSongs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [showPlaylists, setShowPlaylists] = useState(false);
   const [editBio, setEditBio] = useState('');
   const [editGenre, setEditGenre] = useState('');
 
@@ -64,8 +66,24 @@ export default function Profile() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        <div className="glass-card p-8 mb-6">
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            <div className="skeleton w-24 h-24 rounded-2xl" />
+            <div className="flex-1 w-full space-y-3">
+              <div className="skeleton h-7 w-48 mx-auto sm:mx-0" />
+              <div className="skeleton h-4 w-64 mx-auto sm:mx-0" />
+              <div className="skeleton h-4 w-32 mx-auto sm:mx-0" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          {[1, 2, 3, 4].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="skeleton h-72 rounded-xl" />
+          <div className="skeleton h-72 rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -150,12 +168,20 @@ export default function Profile() {
                     Joined {new Date(profile.joinedAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </p>
                   {isOwnProfile && (
-                    <button onClick={() => setIsEditing(true)} className="btn-ghost text-xs mt-2 flex items-center gap-1">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                      </svg>
-                      Edit Profile
-                    </button>
+                    <div className="flex items-center gap-2 mt-2">
+                      <button onClick={() => setIsEditing(true)} className="btn-ghost text-xs flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                        </svg>
+                        Edit Profile
+                      </button>
+                      <button onClick={() => setShowPlaylists(true)} className="btn-ghost text-xs flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+                        </svg>
+                        My Playlists
+                      </button>
+                    </div>
                   )}
                 </>
               )}
@@ -264,6 +290,10 @@ export default function Profile() {
           </div>
         )}
       </main>
+
+      {isOwnProfile && (
+        <PlaylistManager isOpen={showPlaylists} onClose={() => setShowPlaylists(false)} />
+      )}
     </div>
   );
 }

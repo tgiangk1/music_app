@@ -71,4 +71,38 @@ router.get('/:slug/stats', optionalAuth, (req, res) => {
   });
 });
 
+router.get('/:slug/leaderboard', optionalAuth, (req, res) => {
+  const db = getDb();
+  const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+
+  const leaderboard = db.prepare(`
+    SELECT u.id as user_id, u.display_name, u.avatar,
+           SUM(CASE WHEN h.played_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) as total_songs,
+           COUNT(h.id) as songs_played
+    FROM song_history h
+    JOIN users u ON h.added_by = u.id
+    WHERE h.room_id = ?
+    GROUP BY u.id
+    ORDER BY total_songs DESC, songs_played DESC
+    LIMIT 10
+  `).all(room.id);
+
+  res.json({ leaderboard });
+});
+
+router.get('/:slug/stats/me', verifyToken, (req, res) => {
+  const db = getDb();
+  const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(req.params.slug);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+
+  const songsTotal = db.prepare('SELECT COUNT(*) as count FROM song_history WHERE room_id = ? AND added_by = ?').get(room.id, req.user.userId).count;
+  const songsInQueue = db.prepare('SELECT COUNT(*) as count FROM songs WHERE room_id = ? AND added_by = ?').get(room.id, req.user.userId).count;
+  const messageCount = db.prepare('SELECT COUNT(*) as count FROM chat_messages WHERE room_id = ? AND user_id = ?').get(room.id, req.user.userId).count;
+
+  res.json({
+    stats: { songsTotal, songsInQueue, messageCount },
+  });
+});
+
 export default router;

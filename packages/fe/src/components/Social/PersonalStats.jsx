@@ -1,15 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
-import { useSocket } from '../../hooks/useSocket';
 
 /**
  * Feature 4: Personal Stats
  * Shows user's contribution stats in the room
  */
-export default function PersonalStats({ slug }) {
+export default function PersonalStats({ slug, socket }) {
     const [stats, setStats] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const { socket } = useSocket(slug);
 
     useEffect(() => {
         if (!slug) return;

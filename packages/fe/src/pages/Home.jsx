@@ -2,6 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import ThemeSwitcher from '../components/ThemeSwitcher';
+import NotificationBell from '../components/NotificationBell';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -80,6 +81,8 @@ export default function Home() {
                             <span className="hidden sm:inline">Stats</span>
                         </Link>
 
+                        <NotificationBell />
+
                         <div className="flex items-center gap-3">
                             <img
                                 src={user?.avatar}
@@ -126,14 +129,47 @@ export default function Home() {
                         ))}
                     </div>
                 ) : rooms.length === 0 ? (
-                    <div className="text-center py-20 animate-fade-in">
-                        <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-card flex items-center justify-center">
-                            <svg className="w-10 h-10 text-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+                    <div className="glass-card p-8 sm:p-12 max-w-2xl mx-auto text-center animate-fade-in">
+                        <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-primary/15 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
                             </svg>
                         </div>
-                        <h3 className="font-display text-xl font-semibold text-text-secondary mb-2">No rooms yet</h3>
-                        <p className="text-text-muted text-sm">Create your first room to get started!</p>
+                        <h3 className="font-display text-xl font-semibold text-text-primary mb-1">Welcome to SoundDen! 🎧</h3>
+                        <p className="text-text-muted text-sm mb-8">Listen together in real-time — here's how to get started:</p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 text-left">
+                            {[
+                                {
+                                    step: '1',
+                                    title: 'Create a room',
+                                    desc: 'Pick a name, icon and color for your team space.',
+                                },
+                                {
+                                    step: '2',
+                                    title: 'Invite friends',
+                                    desc: 'Share the room link or QR code with anyone.',
+                                },
+                                {
+                                    step: '3',
+                                    title: 'Add music',
+                                    desc: 'Paste a YouTube link and vote on what plays next.',
+                                },
+                            ].map((s, i) => (
+                                <div key={s.step} className="bg-surface/60 rounded-xl p-4 animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
+                                    <div className="w-7 h-7 rounded-full bg-primary text-white text-sm font-bold flex items-center justify-center mb-2">{s.step}</div>
+                                    <p className="text-sm font-semibold text-text-primary mb-0.5">{s.title}</p>
+                                    <p className="text-xs text-text-muted leading-relaxed">{s.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button onClick={() => setShowCreateModal(true)} className="btn-primary inline-flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            Create Your First Room
+                        </button>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -252,7 +288,7 @@ function CreateRoomModal({ onClose, onCreated }) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div role="dialog" aria-modal="true" aria-label="Create new room" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
@@ -425,7 +461,7 @@ function PasswordModal({ room, onClose, onSuccess }) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div role="dialog" aria-modal="true" aria-label="Room password required" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60" onClick={onClose} />
             <div className="glass-card p-8 w-full max-w-sm relative z-10 animate-fade-in text-center">
                 {/* Lock icon */}

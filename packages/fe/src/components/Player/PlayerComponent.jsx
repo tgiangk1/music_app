@@ -257,6 +257,7 @@ export default function PlayerComponent({
                                 }}
                                 className="px-2 py-1 rounded-lg text-[10px] font-medium bg-black/40 text-white/80 hover:text-white backdrop-blur-sm transition-all uppercase"
                                 title="Change mode"
+                                aria-label={`Visualizer mode: ${visualizerMode}. Click to change`}
                             >
                                 {visualizerMode}
                             </button>
@@ -270,6 +271,7 @@ export default function PlayerComponent({
                                 }}
                                 className="px-2 py-1 rounded-lg text-[10px] font-medium bg-black/40 text-white/80 hover:text-white backdrop-blur-sm transition-all"
                                 title="Change colors"
+                                aria-label={`Visualizer color scheme: ${vizColorScheme}. Click to change`}
                             >
                                 🎨 {vizColorScheme}
                             </button>
@@ -344,6 +346,8 @@ export default function PlayerComponent({
                             className="relative flex items-center"
                             onMouseEnter={() => setShowVolume(true)}
                             onMouseLeave={() => setShowVolume(false)}
+                            onFocus={() => setShowVolume(true)}
+                            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setShowVolume(false); }}
                         >
                             <button
                                 onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); toggleMute(); }}

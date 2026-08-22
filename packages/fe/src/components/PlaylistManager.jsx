@@ -72,7 +72,7 @@ export default function PlaylistManager({ isOpen, onClose }) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div role="dialog" aria-modal="true" aria-label="Saved playlists" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-surface-800 border border-surface-700/50 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
                 <div className="flex items-center justify-between p-6 border-b border-surface-700/50">
                     <h2 className="font-syne text-2xl font-bold font-glow">Saved Playlists</h2>

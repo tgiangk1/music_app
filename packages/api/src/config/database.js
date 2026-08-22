@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', '..', 'data', 'jukebox.db');
 
 let db;
 
@@ -16,17 +15,18 @@ export function getDb() {
 }
 
 export function initDatabase() {
-  const dataDir = path.dirname(DB_PATH);
+  const dbPath = process.env.DB_PATH || path.join(__dirname, '..', '..', 'data', 'jukebox.db');
+  const dataDir = path.dirname(dbPath);
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  db = new Database(DB_PATH);
+  db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   runMigrations();
-  console.log('✅ Database initialized at', DB_PATH);
+  console.log('✅ Database initialized at', dbPath);
   return db;
 }
 
@@ -232,4 +232,80 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON feedbacks(status);
   `);
   try { db.exec(`ALTER TABLE feedbacks ADD COLUMN screenshot TEXT`); } catch (e) { }
+
+  // Feature: Notification Center
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS room_notifications (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON room_notifications(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_notifications_unread ON room_notifications(user_id, is_read);
+  `);
+
+  // Feature: Room Blocklist (video/channel)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS room_blocklist (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('channel', 'video')),
+      value TEXT NOT NULL,
+      title TEXT,
+      added_by TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (added_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_blocklist_room ON room_blocklist(room_id);
+  `);
+
+  // Feature: Queue suggestions with member voting
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS room_suggestions (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      suggested_by TEXT NOT NULL,
+      youtube_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      thumbnail TEXT,
+      channel_name TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (suggested_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_suggestions_room ON room_suggestions(room_id);
+
+    CREATE TABLE IF NOT EXISTS room_suggestion_votes (
+      suggestion_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (suggestion_id, user_id),
+      FOREIGN KEY (suggestion_id) REFERENCES room_suggestions(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Feature: Integrations (Slack webhook)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS room_integrations (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      webhook_url TEXT NOT NULL,
+      config TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_integrations_room ON room_integrations(room_id);
+  `);
 }
